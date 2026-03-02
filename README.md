@@ -1,96 +1,128 @@
-# DevSecOps BankApp
+# DevSecOps Banking Application
+
+<div align="center">
+
+
+A robust, containerized banking application built on Spring Boot 3 and Java 21. This project demonstrates modern financial software architecture, integrating Java's virtual threads for high concurrency, a contextual AI assistant for user engagement, and integrated DevSecOps practices for security and observability.
 
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A modern, secure banking web application built with Spring Boot 3.4.1 and Java 21, featuring an integrated AI assistant and robust DevSecOps practices.
+</div>
 
-## 🌟 Key Features
+---
 
-- **Core Banking**: Secure user registration, login, real-time balance tracking, deposits, withdrawals, and peer-to-peer transfers.
-- **AI Banking Assistant**: An integrated chat interface powered by Ollama (TinyLlama) that provides context-aware financial insights based on your transaction history.
-- **High Performance**: Leverages Java 21 **Virtual Threads** for optimal concurrency and scalability.
-- **Modern UI**: Clean, responsive dashboard built with Thymeleaf and modern CSS.
-- **Monitoring & Observability**: Built-in health checks and metrics via Spring Boot Actuator and Prometheus integration.
-- **Containerized Implementation**: Fully Dockerized setup for consistent development and deployment environments.
+## Core Features
 
-## 🛠️ Tech Stack
+- **Financial Operations**: Secure user registration, authentication, and real-time balance management. Supports deposits, withdrawals, and peer-to-peer transfers.
+- **AI Financial Assistant**: An integrated chat interface powered by Ollama (TinyLlama), providing context-aware financial insights based on account state and transaction history.
+- **High Concurrency**: Leverages Java 21 virtual threads to optimize performance and scalability for concurrent banking operations.
+- **Monitoring and Observability**: Pre-configured health checks and metrics via Spring Boot Actuator and Prometheus integration.
+- **Infrastructure as Code**: Fully containerized environment using Docker and Docker Compose for consistent local development and production-like testing.
+
+---
+
+## Technical Stack
 
 - **Backend**: Java 21, Spring Boot 3.4.1
-- **Security**: Spring Security (Session-based auth)
-- **Database**: MySQL 8.0, Spring Data JPA (Hibernate)
-- **AI Integration**: Ollama (TinyLlama model)
+- **Security**: Spring Security (Session-based)
+- **Database**: MySQL 8.0 with Hibernate ORM
+- **AI Engine**: Ollama (TinyLlama model)
 - **Frontend**: Thymeleaf, HTML5, CSS3, JavaScript
 - **Observability**: Spring Boot Actuator, Micrometer, Prometheus
-- **Infrastucture**: Docker, Docker Compose
+- **Environment**: Docker, Docker Compose
 
-## 🚀 Quick Start
+---
 
-The fastest way to get the application running is using Docker Compose.
+## Getting Started
 
 ### Prerequisites
-- [Docker](https://docs.docker.com/get-docker/)
-- [Docker Compose](https://docs.docker.com/compose/install/)
 
-### Running with Docker Compose
-1. Clone the repository.
-2. Navigate to the project root.
-3. Run the following command:
+- Docker Engine
+- Docker Compose
+
+### Quick Start with Docker
+
+1. Clone the repository and navigate to the root directory.
+2. Execute the following command to start the application and its dependencies:
    ```bash
    docker-compose up -d
    ```
-4. Access the application at `http://localhost:8080`.
-5. The AI assistant requires the `ollama` container to be running and the `tinyllama` model to be pulled (this may take a few minutes on first start).
+3. Access the application at `http://localhost:8080`.
+4. Note: On the initial startup, the AI assistant may require a few minutes to pull the necessary model within the Ollama container.
 
-## 💻 Manual Setup
+---
 
-If you prefer to run the application locally without Docker:
+## Manual Installation
 
-### Prerequisites
+To run the application locally without Docker, ensure the following components are installed:
+
 - JDK 21
 - MySQL 8.0
-- [Ollama](https://ollama.com/) (installed and running with `tinyllama` model)
+- Ollama (installed and running with the `tinyllama` model)
 
-### Steps
-1. **Configure Database**: Create a database named `bankappdb` in your MySQL instance.
-2. **Setup Properties**: Update `src/main/resources/application.properties` with your MySQL credentials.
-3. **Run Ollama**: 
+### Setup Steps
+
+1. **Database Configuration**: Create a MySQL database named `bankappdb`.
+2. **Configuration**: Update `src/main/resources/application.properties` with your MySQL credentials.
+3. **Initialize AI Model**:
    ```bash
    ollama run tinyllama
    ```
-4. **Build and Run**:
+4. **Build and Execute**:
    ```bash
    ./mvnw spring-boot:run
    ```
 
-## 🤖 AI Assistant Integration
+---
 
-The application integrates with [Ollama](https://ollama.com/) to provide a personal banking assistant. It uses the `tinyllama` model by default for a balance of performance and intelligence. The assistant has access to your:
-- Current balance
-- Recent transaction history (Last 5 transactions)
-- Basic account information
+## AI Assistant Architecture
 
-This allows it to answer questions like "What was my last deposit?" or "Can I afford to spend $50?".
+The banking assistant provides personalized financial support by analyzing the following user context:
+- Current account balance
+- Detailed transaction history (most recent 5 records)
+- Basic account metadata
 
-## 📈 Monitoring
+This integration allows the assistant to provide precise answers regarding spending habits, recent activity, and account status.
 
-The application exposes several management endpoints:
-- **Health Check**: `http://localhost:8080/actuator/health`
-- **Metrics**: `http://localhost:8080/actuator/metrics`
-- **Prometheus Data**: `http://localhost:8080/actuator/prometheus`
+---
 
-## 📂 Project Structure
+## Observability and Management
+
+The application exposes the following management endpoints for monitoring:
+
+- **Health Status**: `http://localhost:8080/actuator/health`
+- **Application Metrics**: `http://localhost:8080/actuator/metrics`
+- **Prometheus Metrics**: `http://localhost:8080/actuator/prometheus`
+
+---
+
+## Project Structure
 
 ```text
 src/main/java/com/example/bankapp/
-├── config/        # Security and App configurations
+├── config/        # Security and application configurations
 ├── controller/    # Web and REST controllers
-├── model/         # JPA Entities (Account, Transaction)
+├── model/         # JPA Entities and Data models
 ├── repository/    # Data access layer
-└── service/       # Business logic (Account, AI/Chat)
+└── service/       # Business logic and AI integration
 ```
 
-## 📄 License
+---
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+If you find this repository helpful, don't forget to give it a Star!
+
+**Happy Learning!**
+
+**TrainWithShubham**
+
+</div>
