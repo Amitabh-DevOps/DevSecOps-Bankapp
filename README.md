@@ -93,7 +93,7 @@ Follow these five phases to implement the project exactly as documented.
 - Launch a separate Ubuntu EC2 (t3.medium recommended).
 - **Security Group**: Open **Port 11434** to the **App EC2's Security Group**.
 
-Automate your Ollama server setup by running this script as [USER DATA While launching EC2](scripts/ollama-setup.sh):
+Automate your Ollama server setup by running this script as [USER DATA While launching EC2](scripts/ollama-setup.sh)
 
 *This script installs Ollama, enables external access (0.0.0.0), and pulls the `tinyllama` model.*
 
