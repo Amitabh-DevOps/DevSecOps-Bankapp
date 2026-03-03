@@ -3,6 +3,11 @@ name: DevSecOps Pipeline
 on:
   push:
     branches: [ main, devsecops ]
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+      - 'scripts/**'
 
 permissions:
   id-token: write # Required for OIDC

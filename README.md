@@ -19,7 +19,8 @@ The system follows a multi-tier, secure architecture deployed on AWS:
 
 ```mermaid
 graph TD
-    subgraph "Public Internet"
+    subgraph "External"
+        GH[GitHub Actions]
         User[User Browser]
     end
 
@@ -40,12 +41,21 @@ graph TD
             Secrets[AWS Secrets Manager]
             OIDC[IAM OIDC Provider]
         end
+
+        subgraph "Container Registry"
+            ECR[Amazon ECR]
+        end
     end
 
+    GH -->|1. OIDC Auth| OIDC
+    GH -->|2. Push Image| ECR
+    GH -->|3. SSH Deploy| AppEC2
+    
     User -->|Port 8080| AppEC2
     AppEC2 -->|Database Connection| RDS
     AppEC2 -->|REST API| Ollama
     AppEC2 -->|Fetch Credentials| Secrets
+    AppEC2 -->|Pull Image| ECR
 ```
 
 ---
