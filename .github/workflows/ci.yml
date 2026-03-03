@@ -1,14 +1,7 @@
 name: CI - Security Scanning
 
 on:
-  push:
-    branches: [ main, devsecops ]
-    paths-ignore:
-      - '**.md'
-      - '.gitignore'
-      - 'LICENSE'
-      - 'screenshots/**'
-      - 'scripts/**'
+  workflow_call:
 
 permissions:
   contents: read

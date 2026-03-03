@@ -1,10 +1,7 @@
 name: Build - Container Build & Push
 
 on:
-  workflow_run:
-    workflows: [ "CI - Security Scanning" ]
-    types: [ completed ]
-    branches: [ main, devsecops ]
+  workflow_call:
 
 permissions:
   id-token: write  # Required for OIDC
@@ -18,12 +15,9 @@ jobs:
   build:
     name: Build & Package
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -51,11 +45,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Build Docker Image (for scanning)
-        run: docker build -t bankapp:scan-${{ github.event.workflow_run.head_sha }} .
+        run: docker build -t bankapp:scan-${{ github.sha }} .
 
       - name: Cache Trivy DB
         uses: actions/cache@v4
@@ -68,7 +60,7 @@ jobs:
       - name: Run Trivy Image Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: bankapp:scan-${{ github.event.workflow_run.head_sha }}
+          image-ref: bankapp:scan-${{ github.sha }}
           format: 'table'
           exit-code: '0'         # Audit mode: report findings but do not block pipeline
           ignore-unfixed: true
@@ -94,8 +86,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Configure AWS Credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -111,7 +101,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
