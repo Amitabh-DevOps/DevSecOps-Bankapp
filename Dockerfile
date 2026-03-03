@@ -8,8 +8,8 @@ RUN chmod +x mvnw && ./mvnw clean package -DskipTests -B
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
-# Create a non-root user for security
-RUN groupadd -r devsecops && useradd -r -g devsecops devsecops
+# Create a non-root user for security (Alpine uses addgroup/adduser instead of groupadd/useradd)
+RUN addgroup -S devsecops && adduser -S -G devsecops devsecops
 USER devsecops
 
 # Copy only the built artifact
