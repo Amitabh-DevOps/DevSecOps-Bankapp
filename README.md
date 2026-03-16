@@ -138,8 +138,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
       sudo apt install -y git curl unzip jq
       sudo snap install aws-cli --classic
 
-      # Configure AWS CLI
-      aws configure  # Enter your Access Key, Secret, Region
+      # No 'aws configure' needed — IAM Instance Profile provides credentials automatically
 
       # Install kubectl
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
