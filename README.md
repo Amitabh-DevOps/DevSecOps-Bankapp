@@ -203,7 +203,7 @@ The pipeline uses **OpenID Connect (OIDC)** for keyless authentication between G
       - `Audience`: Select one.
       - `GitHub organization`: Your GitHub username or org.
       - `GitHub repository`: `DevSecOps-Bankapp`
-      - `GitHub branch`: `main` or `devsecops`
+      - `GitHub branch`: `main` or `aws`
 
       ![role](screenshots/11.png)
 
