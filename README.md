@@ -2,12 +2,13 @@
 
 # DevSecOps Banking Application
 
-A high-performance, containerized financial platform built with Spring Boot 3, Java 21, and integrated Contextual AI. This project implements a secure "DevSecOps Pipeline" using GitHub Actions, OIDC authentication, and AWS managed services.
+A high-performance, cloud-native financial platform built with Spring Boot 3 and Java 21. Deployed on **Amazon EKS** with a fully automated **GitOps pipeline** using GitHub Actions, ArgoCD, and Helm — enforcing **8 sequential security gates** before any code reaches production.
 
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
-[![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-orange.svg)](.github/workflows/devsecops.yml)
-[![AWS OIDC](https://img.shields.io/badge/Security-OIDC-red.svg)](#phase-3-security-and-identity-configuration)
+[![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-orange.svg)](.github/workflows/devsecops-main.yml)
+[![AWS EKS](https://img.shields.io/badge/Deploy-AWS%20EKS-yellow.svg)](#phase-4-cloud-native-deployment-eks--gitops)
+[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-red.svg)](#phase-4-cloud-native-deployment-eks--gitops)
 
 </div>
 
@@ -17,75 +18,89 @@ A high-performance, containerized financial platform built with Spring Boot 3, J
 
 ## Technical Architecture
 
-The application is deployed across a multi-tier, segmented AWS environment. The control plane leverages GitHub Actions with integrated security gates at every stage.
+The application is deployed on a modern, cloud-native **Amazon EKS** cluster. GitHub Actions handles all CI/CD security gates, then updates Helm manifests in the repo, which **ArgoCD** automatically synchronizes to the cluster.
 
 ```mermaid
 graph TD
-    subgraph "External Control Plane"
+    subgraph "CI/CD Control Plane"
+        DEV[Developer Push]
         GH[GitHub Actions]
-        User[User Browser]
+        REPO[(GitHub Repo\nHelm Manifests)]
     end
 
-    subgraph "AWS Infrastructure (VPC)"
-        subgraph "Application Tier"
-            AppEC2[App EC2 - Ubuntu/Docker]
-            DB[(MySQL 8.0 Container)]
+    subgraph "AWS Cloud"
+        ECR[Amazon ECR\nContainer Registry]
+        OIDC[IAM OIDC Provider]
+
+        subgraph "EKS Cluster — bankapp-cluster"
+            ARGO[ArgoCD]
+            GW[Gateway API\nbankapp-gateway]
+            APP[BankApp Pods\nPort 8080]
+            NGX[Nginx Demo Pods\nPort 80]
+            DB[(MySQL 8.0 Pod)]
+            OLLAMA_SVC[Ollama EC2\nAI Engine]
         end
 
-        subgraph "Artificial Intelligence Tier"
-            Ollama[Ollama EC2 - AI Engine]
-        end
-
-        subgraph "Identity & Secrets"
-            Secrets[AWS Secrets Manager]
-            OIDC[IAM OIDC Provider]
-        end
-
-        subgraph "Registry"
-            ECR[Amazon ECR]
-        end
+        SM[AWS Secrets Manager]
     end
 
-    GH -->|1. OIDC Authentication| OIDC
-    GH -->|2. Push Scanned Image| ECR
-    GH -->|3. SSH Orchestration| AppEC2
-    GH -->|4. DAST Scan| AppEC2
-    
-    User -->|Port 8080| AppEC2
-    AppEC2 -->|JDBC Connection| DB
-    AppEC2 -->|REST Integration| Ollama
-    AppEC2 -->|Runtime Secrets| Secrets
-    AppEC2 -->|Pull Image| ECR
+    DEV -->|git push| GH
+    GH -->|OIDC Auth| OIDC
+    GH -->|Push image| ECR
+    GH -->|Update values.yaml| REPO
+
+    ARGO -->|Watch & Sync| REPO
+    ARGO -->|Deploy/Update| APP
+
+    USER[User Browser] -->|your-domain.com /| GW
+    GW -->|Route /| APP
+    GW -->|Route /nginx| NGX
+
+    APP -->|Pull Image| ECR
+    APP -->|JDBC| DB
+    APP -->|REST| OLLAMA_SVC
+    APP -->|Runtime Secrets| SM
 ```
 
 ---
 
-## Security Pipeline (DevSecOps Pipeline)
+## Security Pipeline — 8 Gates
 
-The CI/CD pipeline enforces **9 sequential security gates** before any code reaches production:
+The pipeline enforces **8 sequential security gates** across three modular workflows: [`ci.yml`](.github/workflows/ci.yml), [`build.yml`](.github/workflows/build.yml), and [`cd.yml`](.github/workflows/cd.yml), all orchestrated by [`devsecops-main.yml`](.github/workflows/devsecops-main.yml).
 
-| Gate | Name | Tool | Purpose |
-| :---: | :--- | :--- | :--- |
-| 1 | Secret Scan | Gitleaks | Scans entire Git history for leaked secrets |
-| 2 | Lint | Checkstyle | Enforces Java Google-Style coding standards |
-| 3 | SAST | Semgrep | Scans Java source code for security flaws and OWASP Top 10 |
-| 4 | SCA | OWASP Dependency Check (first time run can take more than 30+ minutes) | Scans Maven dependencies for known CVEs |
-| 5 | Build | Maven | Compiles and packages the application |
-| 6 | Container Scan | Trivy | Scans the Docker image for OS and library vulnerabilities |
-| 7 | Push | Amazon ECR | Pushes the image only after Trivy passes |
-| 8 | Deploy | SSH / Docker Compose | Automated deployment to AWS EC2 |
-| 9 | DAST | OWASP ZAP | Dynamic attack surface scanning on live app |
+| Gate | Job | Workflow | Tool | Behavior |
+| :---: | :--- | :--- | :--- | :--- |
+| 1 | `gitleaks` | `ci.yml` | Gitleaks | **Strict** — Fails if any secrets found in full Git history |
+| 2 | `lint` | `ci.yml` | Checkstyle | **Audit** — Reports Java style violations (Google Style), does not block |
+| 3 | `sast` | `ci.yml` | Semgrep | **Strict** — SAST on Java code (OWASP Top 10 + secrets rules) |
+| 4 | `sca` | `ci.yml` | OWASP Dependency Check | **Strict** — Fails if any CVE with CVSS ≥ 7.0 found in Maven deps |
+| 5 | `build` | `build.yml` | Maven | Compiles, packages JAR, uploads as build artifact |
+| 6 | `image_scan` | `build.yml` | Trivy | **Strict** — Fails on CRITICAL or HIGH CVE in the Docker image |
+| 7 | `push_to_ecr` | `build.yml` | Amazon ECR (OIDC) | Pushes verified image to ECR using keyless OIDC auth |
+| 8 | `gitops-update` | `cd.yml` | Helm / ArgoCD | Updates `charts/bankapp/values.yaml` with new image tag → triggers ArgoCD auto-sync |
+
+> **ArgoCD** is configured with `automated.selfHeal: true` — once `values.yaml` is updated, ArgoCD automatically pulls and deploys the new image to the EKS cluster without any manual intervention.
+
+All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in each GitHub Actions run.
 
 ---
 
 ## Technology Stack
 
-- **Backend Framework**: Java 21, Spring Boot 3.4.1
-- **Security Strategy**: Spring Security, IAM OIDC, Secrets Manager
-- **Persistence Layer**: MySQL 8.0 (Docker Container)
-- **AI Integration**: Ollama (TinyLlama)
-- **DevOps Tooling**: Docker, Docker Compose, GitHub Actions, AWS CLI, jq
-- **Infrastructure**: Amazon EC2, Amazon ECR, Amazon VPC
+| Category | Technology |
+| :--- | :--- |
+| **Backend** | Java 21, Spring Boot 3.4.1, Spring Security, Spring Data JPA |
+| **Frontend** | Thymeleaf, Bootstrap |
+| **AI Integration** | Ollama (TinyLlama), REST |
+| **Database** | MySQL 8.0 (Kubernetes Pod) |
+| **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
+| **Kubernetes** | Amazon EKS (cluster: `bankapp-cluster`, nodegroup: `bankapp-ng`, t3.medium) |
+| **GitOps** | ArgoCD, Helm 3 |
+| **Networking** | Kubernetes Gateway API (GatewayClass: `amazon-vpc-lattice`) |
+| **CI/CD** | GitHub Actions (OIDC, workflow_call pattern) |
+| **Security Tools** | Gitleaks, Checkstyle, Semgrep, OWASP Dependency Check, Trivy |
+| **Registry** | Amazon ECR |
+| **Secrets** | AWS Secrets Manager + Kubernetes Secrets |
 
 ---
 
@@ -93,61 +108,75 @@ The CI/CD pipeline enforces **9 sequential security gates** before any code reac
 
 ### Phase 1: AWS Infrastructure Initialization
 
+> ### EC2 Instances Required
+> | # | EC2 | Purpose | Who creates it |
+> | :---: | :--- | :--- | :--- |
+> | 1 | **Management EC2** | Clone repo, install tools (`eksctl`, `kubectl`, `helm`), create EKS cluster, deploy ArgoCD | You manually |
+> | 2 | **Ollama EC2** | Runs Ollama AI engine (TinyLlama, port 11434) | You manually |
+> | Auto | **EKS Worker Nodes** | Run BankApp, MySQL, Nginx pods | `eksctl` auto-provisions |
+
 1. **Container Registry (ECR)**:
 
    - Establish a private ECR repository named `devsecops-bankapp`.
 
       ![ECR](screenshots/2.png)
 
-2. **Application Server (EC2)**:
+2. **Management EC2** *(clone repo & run all kubectl/eksctl/helm commands from here)*:
 
-   - Deploy an Ubuntu 22.04 instance with below `User Data`.
+   - Deploy an **Ubuntu 22.04** EC2 instance (recommended: `t3.medium` or larger).
+   - Configure Security Group to allow **Port 22** (SSH).
+   - Attach an IAM Instance Profile with permissions:
+     - `AmazonEC2ContainerRegistryPowerUser`
+     - `AWSSecretsManagerClientReadOnlyAccess`
+     - `AmazonEKSClusterPolicy` / `AmazonEKSWorkerNodePolicy` (for eksctl)
+
+   - Connect via SSH and run the bootstrap User Data (or manually):
 
       ```bash
       #!/bin/bash
-
-      sudo apt update 
-      sudo apt install -y docker.io docker-compose-v2 jq
-      sudo usermod -aG docker ubuntu
-      sudo newgrp docker
+      sudo apt update
+      sudo apt install -y git curl unzip jq
       sudo snap install aws-cli --classic
+
+      # Configure AWS CLI
+      aws configure  # Enter your Access Key, Secret, Region
+
+      # Install kubectl
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+      # Install eksctl
+      curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+      sudo mv /tmp/eksctl /usr/local/bin
+
+      # Install Helm
+      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      # Clone the repo
+      git clone https://github.com/Amitabh-DevOps/DevSecOps-Bankapp.git
+      cd DevSecOps-Bankapp
       ```
 
-   - Configure Security Group to open inbound rule for Port 22 (Management) and Port 8080 (Service).
-
-      > Better to give `name` to Security Group created.
-
-   - Create an IAM Instance Profile(IAM EC2 role) containing permissions:
-     - `AmazonEC2ContainerRegistryPowerUser`
-     - `AWSSecretsManagerClientReadOnlyAccess`
-
-        ![Permissions](screenshots/3.png)
-
-   - Attach it to Application EC2. Select EC2 -> Actions -> Security -> Modify IAM role -> Attach created IAM role.
-
-      ![IAM role](screenshots/4.png)
-   
-   - Connect to EC2 Instance and Run below command to check whether IAM role is working or not.
+   - Verify tools:
 
       ```bash
-      aws sts get-caller-identity
+      kubectl version --client && eksctl version && helm version
       ```
 
-      You will get your account details with IAM role assumed.
+3. **Ollama EC2** *(dedicated AI engine)*:
 
-3. **AI Engine Tier (Ollama)**:
    - Deploy a dedicated Ubuntu EC2 instance.
-   - Open Inbound Port `11434` from the Application EC2 Security Group.
+   - Open Inbound Port `11434` from the EKS node security group.
 
       > Better to give `name` to Security Group created.
-    
+
       ![ollama-sg](screenshots/8.png)
 
    - Automate initialization using the [ollama-setup.sh](scripts/ollama-setup.sh) script via EC2 User Data.
-    
+
       ![user-data](screenshots/9.png)
 
-   - Verify the AI engine is responsive and the model is pulled in `AI engine EC2`:
+   - Verify the AI engine is responsive:
 
      ```bash
      ollama list
@@ -159,7 +188,7 @@ The CI/CD pipeline enforces **9 sequential security gates** before any code reac
 
 ### Phase 2: Security and Identity Configuration
 
-The deployment pipeline utilizes OpenID Connect (OIDC) for secure, keyless authentication between GitHub and AWS.
+The pipeline uses **OpenID Connect (OIDC)** for keyless authentication between GitHub Actions and AWS — no long-lived AWS keys stored anywhere.
 
 1. **IAM Identity Provider**:
    - Provider URL: `https://token.actions.githubusercontent.com`
@@ -167,16 +196,14 @@ The deployment pipeline utilizes OpenID Connect (OIDC) for secure, keyless authe
 
       ![identity-provider](screenshots/10.png)
 
-2. **Deployment Role**:
-   - Click on created `Identity provider`
-   - Asign & Create a role named `GitHubActionsRole`.
+2. **Deployment Role** (`GitHubActionsRole`):
+   - Click on created `Identity provider` → Assign Role.
    - Enter following details:
       - `Identity provider`: Select created one.
-      - `Audience`: Select created one.
-      - `GitHub organization`: Your GitHub Username or Orgs Name where this repo is located.
-      - `GitHub repository`: Write the Repository name of this project. `(e.g, DevSecOps-Bankapp)`
-      - `GitHub branch`: branch to use for this project `(e.g, devsecops)`
-      - Click on `Next`
+      - `Audience`: Select one.
+      - `GitHub organization`: Your GitHub username or org.
+      - `GitHub repository`: `DevSecOps-Bankapp`
+      - `GitHub branch`: `main` or `devsecops`
 
       ![role](screenshots/11.png)
 
@@ -193,34 +220,43 @@ The deployment pipeline utilizes OpenID Connect (OIDC) for secure, keyless authe
 ### Phase 3: Secrets and Pipeline Configuration
 
 #### 1. AWS Secrets Manager
-Create a secret named `bankapp/prod-secrets` in `Other type of secret` with the following key-value pairs:
+Create a secret named `bankapp/prod-secrets` (`Other type of secret`) with the following key-value pairs:
 
-| Secret Key | Description | Sample/Default Value |
+| Secret Key | Description | Sample Value |
 | :--- | :--- | :--- |
-| `DB_HOST` | The MySQL container service name | `db` |
-| `DB_PORT` | The database port | `3306` |
-| `DB_NAME` | The application database name | `bankappdb` |
-| `DB_USER` | The database username | `bankuser` |
-| `DB_PASSWORD` | The database password | `Test@123` |
-| `OLLAMA_URL` | The private URL for the AI tier | `http://<PRIVATE-IP>:11434` |
+| `DB_HOST` | MySQL K8s service name | `db-service` |
+| `DB_PORT` | Database port | `3306` |
+| `DB_NAME` | Application database name | `bankapp` |
+| `DB_USER` | Database username | `bankuser` |
+| `DB_PASSWORD` | Database password | `Test@123` |
+| `OLLAMA_URL` | Ollama EC2 private URL | `http://<PRIVATE-IP>:11434` |
 
 ![aws-ssm](screenshots/14.png)
 
-#### 2. GitHub Repository Secrets
-Configure the following Action Secrets within your GitHub repository settings:
+#### 2. Kubernetes Secret (for Helm / MySQL)
+The Helm chart reads DB password from a Kubernetes Secret named `bankapp-db-secrets`. Create it after cluster setup:
+
+```bash
+kubectl create secret generic bankapp-db-secrets \
+  --from-literal=password=<YOUR_DB_PASSWORD> \
+  -n bankapp-prod
+```
+
+#### 3. GitHub Repository Secrets
+Configure the following Action Secrets in **Settings → Secrets and variables → Actions**:
 
 | Secret Name | Description |
 | :--- | :--- |
-| `AWS_ROLE_ARN` | The ARN of the `GitHubActionsRole` |
-| `AWS_REGION` | The AWS region where resources are deployed |
+| `AWS_ROLE_ARN` | ARN of the `GitHubActionsRole` |
+| `AWS_REGION` | AWS region (e.g., `us-east-1`) |
 | `AWS_ACCOUNT_ID` | Your 12-digit AWS account number |
-| `ECR_REPOSITORY` | The name of the ECR repository (`devsecops-bankapp`) |
-| `EC2_HOST` | The public IP address of the Application EC2 |
-| `EC2_USER` | The SSH username (default is `ubuntu`) |
-| `EC2_SSH_KEY` | The content of your private SSH key (`.pem` file) |
-| `NVD_API_KEY` | Free API key from [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key) for OWASP SCA scans |
+| `ECR_REPOSITORY` | ECR repo name (`devsecops-bankapp`) |
+| `GITOPS_TOKEN` | GitHub PAT with `repo` scope (for `cd.yml` to push `values.yaml` updates) |
+| `NVD_API_KEY` | Free API key from [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key) — speeds up OWASP SCA from 30+ min → ~8 min |
 
 > **Note**: The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 requests/30s, reducing the OWASP Dependency Check scan time from 30+ minutes to under 8 minutes. Without it the SCA job will time out.
+
+![github-secret](screenshots/15.png)
 
 #### Obtaining the NVD API Key
 
@@ -248,72 +284,213 @@ Configure the following Action Secrets within your GitHub repository settings:
 
    ![api-key](screenshots/24.png)
 
-**Step 4: Add as GitHub Secret**
-- Go to your repository on GitHub.
-- Navigate to **Settings** → **Secrets and variables** → **Actions** → **New repository secret**.
-- Name: `NVD_API_KEY`
-- Value: Paste the copied API key.
-- Click **Add Secret**.
-
-![github-secret](screenshots/15.png)
+**Step 4**: Add as GitHub Secret named `NVD_API_KEY`.
 
 ---
 
-## Continuous Integration and Deployment
+### Phase 4: Cloud-Native Deployment (EKS & GitOps + TLS)
 
-The DevSecOps lifecycle is orchestrated through the [DevSecOps Main Pipeline](.github/workflows/devsecops-main.yml), which securely sequences three modular workflows: [CI](.github/workflows/ci.yml), [Build](.github/workflows/build.yml), and [CD](.github/workflows/cd.yml). Together they enforce **9 sequential security gates** before any code reaches production. Every `git push` to the `main` or `devsecops` branch triggers the full pipeline automatically.
+#### Step 1 — Install Tools (on Management EC2)
 
-| Gate | Job | Tool | Action |
-| :---: | :--- | :--- | :--- |
-| 1 | `gitleaks` | Gitleaks | **Strict**: Fails if any secrets are found in history. |
-| 2 | `lint` | Checkstyle | **Audit**: Reports style violations but doesn't block (Google Style). |
-| 3 | `sast` | Semgrep | **Strict**: Scans code for vulnerabilities. Fails on findings. |
-| 4 | `sca` | OWASP Dependency Check | **Strict**: Fails if any dependency has CVSS > 7.0. |
-| 5 | `build` | Maven | Standard build and test stage. |
-| 6 | `image_scan` | Trivy | **Strict**: Scans Docker image layers. Fails on any High/Critical CVE. |
-| 7 | `push_to_ecr` | Amazon ECR | Pushes the verified image to AWS ECR using OIDC. |
-| 8 | `deploy` | SSH / Docker Compose | Fetches secrets from AWS Secrets Manager and recreates the container. |
-| 9 | `dast` | OWASP ZAP | **Audit Mode**: Comprehensive scan that reports findings as artifacts, but does not block the pipeline. |
+```bash
+# kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 
-All scan reports (OWASP, Trivy, ZAP) are uploaded as downloadable **Artifacts** in each GitHub Actions run, YOu can look into the **Artifacts**.
+# eksctl
+curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+sudo mv /tmp/eksctl /usr/local/bin
 
-- CI/CD
+# Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
 
-   ![github-actions](screenshots/16.png)
+# Verify
+kubectl version --client && eksctl version && helm version
+```
 
-- Artifacts
+#### Step 2 — Create EKS Cluster
 
-   ![artifacts](screenshots/26.png)
-   
+Run the automated setup script (creates `bankapp-cluster` with nodegroup `bankapp-ng`, 2× t3.medium):
+
+```bash
+chmod +x scripts/eks-setup.sh
+./scripts/eks-setup.sh
+```
+
+Verify nodes are ready:
+
+```bash
+kubectl get nodes
+```
+
+#### Step 3 — Create Namespace & DB Secret
+
+```bash
+kubectl create namespace bankapp-prod
+
+kubectl create secret generic bankapp-db-secrets \
+  --from-literal=password=<YOUR_DB_PASSWORD> \
+  -n bankapp-prod
+```
+
+#### Step 4 — Install cert-manager (Let's Encrypt TLS)
+
+```bash
+# Install cert-manager CRDs + controller
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+
+# Verify cert-manager pods are running
+kubectl get pods -n cert-manager
+```
+
+> **Note**: cert-manager will automatically provision and renew the TLS certificate for `bankapp.amitabh.cloud` via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
+
+> Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
+
+#### Step 5 — Install ArgoCD
+
+```bash
+kubectl create namespace argocd
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# Expose ArgoCD UI via LoadBalancer
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+
+# Get initial admin password
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+```
+
+#### Step 6 — Update values.yaml
+
+- Update `charts/bankapp/values.yaml` with your Ollama URL (domain is already set to `bankapp.amitabh.cloud`):
+
+   ```yaml
+   ollama:
+   url: "http://<OLLAMA-EC2-PRIVATE-IP>:11434"
+   ```
+
+- Also update the ECR repository URI.
+
+#### Step 7 — Configure DNS
+
+Once the cluster is running and the Gateway is provisioned, get the LoadBalancer address:
+
+```bash
+kubectl get gateway bankapp-gateway -n bankapp-prod
+```
+
+Then go to your DNS provider (for `amitabh.cloud`) and create:
+
+| Type | Name | Value |
+| :--- | :--- | :--- |
+| A / CNAME | `bankapp` | `<Gateway LoadBalancer IP or Hostname>` |
+
+#### Step 8 — Deploy via ArgoCD
+
+```bash
+kubectl apply -f gitops/argocd-app.yaml
+```
+
+ArgoCD will pick up `charts/bankapp` from the `main` branch and deploy all resources including Deployments, Services, PVC, Gateway, HTTPRoutes, and the cert-manager Certificate.
+
+#### Step 9 — Trigger the GitOps Pipeline
+
+Push code to the `main` branch. GitHub Actions will:
+1. Run 8 security gates (Gitleaks → Checkstyle → Semgrep → OWASP DC → Build → Trivy → ECR Push → GitOps Update).
+2. Gate 8 commits the new `image.tag` to `charts/bankapp/values.yaml`.
+3. ArgoCD detects the change on `main` and **auto-syncs** the updated image to the EKS cluster.
+
+**Access:**
+- `https://bankapp.amitabh.cloud/` → BankApp (TLS via Let's Encrypt)
+- `https://bankapp.amitabh.cloud/nginx` → Nginx demo
+- HTTP → HTTPS 301 redirect is handled by the Gateway automatically
+
+---
+
+## Helm Chart Structure
+
+```
+charts/bankapp/
+├── Chart.yaml              # Chart metadata (name: bankapp, version: 0.1.0)
+├── values.yaml             # All configurable values (domain, image, DB, Nginx)
+└── templates/
+    ├── _helpers.tpl        # Shared template helpers
+    ├── deployment.yaml     # BankApp Deployment (ECR image, health probes)
+    ├── service.yaml        # BankApp ClusterIP Service (port 8080)
+    ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
+    ├── nginx.yaml          # Nginx Demo Deployment + Service (conditional)
+    ├── gateway.yaml        # Gateway API — Gateway resource (port 80)
+    └── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
+```
+
+**Path Routing:**
+| Path | Backend | Description |
+| :--- | :--- | :--- |
+| `your-domain.com/` | BankApp (port 8080) | Spring Boot Banking Application |
+| `your-domain.com/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
+
+**ArgoCD Application** (`gitops/argocd-app.yaml`):
+- Points to `charts/bankapp` in this repo.
+- Deploys to namespace: `bankapp-prod`.
+- Auto-sync enabled with `prune: true` and `selfHeal: true`.
+
+---
+
+## CI/CD Pipeline Overview
+
+```
+git push
+    │
+    ▼
+CI Workflow (ci.yml)
+    ├── Gate 1: Gitleaks      ── Secret scan (full history)
+    ├── Gate 2: Checkstyle    ── Java style audit
+    ├── Gate 3: Semgrep       ── SAST (OWASP Top 10)
+    └── Gate 4: OWASP DC      ── Dependency CVE scan
+    │
+    ▼ (on success)
+Build Workflow (build.yml)
+    ├── Gate 5: Maven Build   ── Compile + package JAR
+    ├── Gate 6: Trivy Scan    ── Container image scan
+    └── Gate 7: ECR Push      ── Push image (OIDC auth)
+    │
+    ▼ (on success)
+CD Workflow (cd.yml)
+    └── Gate 8: GitOps Update ── Update values.yaml → commit → push
+    │
+    ▼ (ArgoCD auto-sync)
+EKS Cluster
+    └── ArgoCD syncs new image tag → Rolling update on BankApp pods
+```
+
 ---
 
 ## Operational Verification
 
-- **Process Status**: `docker ps`
+| Check | Command |
+| :--- | :--- |
+| Node status | `kubectl get nodes` |
+| Pod status | `kubectl get pods -n bankapp-prod` |
+| ArgoCD sync status | `kubectl get applications -n argocd` |
+| Gateway status | `kubectl get gateway -n bankapp-prod` |
+| Routes | `kubectl get httproute -n bankapp-prod` |
 
-  ![docker ps](screenshots/19.png)
+**Access:**
+- **BankApp**: `http://bankapp.yourdomain.com/`
+- **Nginx Demo**: `http://bankapp.yourdomain.com/nginx`
+- **ArgoCD UI**: `http://<argocd-loadbalancer-ip>` (user: `admin`)
 
-- **Application Working**:
+**DB Verification:**
 
-  ![app](screenshots/20.png)
+```bash
+kubectl exec -it <mysql-pod-name> -n bankapp-prod -- mysql -u bankuser -p bankapp -e "SELECT * FROM accounts;"
+```
 
-- **Database Connectivity**: 
+**Ollama Connectivity:**
 
-  ```bash
-  docker exec -it db mysql -u <USER> -p bankappdb -e "SELECT * FROM accounts;"
-  ```
-
-  ![mysql-result](screenshots/17.png)
-
-  > **ZAP** is automatically created by **DAST - OWASP ZAP Baseline Scan** job in [cd.yml](.github/workflows/cd.yml). Read more about it(How, Why it does) on google...
-
-- **Network Validation**: 
-
-  ```bash
-  nc -zv <OLLAMA-PRIVATE-IP> 11434
-  ```
-
-  ![ollama-success](screenshots/18.png)
+```bash
+nc -zv <OLLAMA-PRIVATE-IP> 11434
+```
 
 ---
 
@@ -321,6 +498,6 @@ All scan reports (OWASP, Trivy, ZAP) are uploaded as downloadable **Artifacts** 
 
 Happy Learning
 
-**TrainWithShubham**  
+**TrainWithShubham**
 
 </div>

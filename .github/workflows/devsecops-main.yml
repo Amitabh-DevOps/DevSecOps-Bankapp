@@ -12,7 +12,7 @@ on:
 
 permissions:
   id-token: write
-  contents: read
+  contents: write  # Required: cd.yml pushes updated values.yaml back to repo (workflow_call inherits this)
   security-events: write
 
 jobs:
@@ -32,7 +32,7 @@ jobs:
     secrets: inherit
 
   # ============================================================
-  # STAGE 3: CD - Deploy + DAST
+  # STAGE 3: CD - GitOps Sync (ArgoCD)
   # ============================================================
   cd:
     needs: build

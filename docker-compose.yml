@@ -1,3 +1,8 @@
+# ==============================================================
+# LOCAL DEVELOPMENT ONLY — DO NOT USE IN PRODUCTION
+# All credentials here are hardcoded for local dev convenience.
+# Production deployment uses EKS + Helm + AWS Secrets Manager.
+# ==============================================================
 services:
   mysql:
     image: mysql:8.0
