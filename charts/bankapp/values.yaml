@@ -22,7 +22,7 @@ database:
   password: "" # To be provided from Secrets
 
 ollama:
-  url: "http://192.168.19.40:11434" # Replace with real Private IP
+  url: "http://172.31.43.184:11434" # Replace with real Private IP
 
 gateway:
   name: "bankapp-gateway"

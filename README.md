@@ -294,7 +294,7 @@ Configure the following Action Secrets in **Settings → Secrets and variables �
 
 #### Step 1 — Create EKS Cluster
 
-Run the automated setup script. It uses **`--vpc-from-lookup-default`** to create the cluster inside your **Default VPC**, ensuring it shares the same network space as Ollama.
+Run the automated setup script. It will create the cluster inside your **Default VPC**, ensuring it shares the same network space as Ollama.
 
 ```bash
 chmod +x scripts/eks-setup.sh
@@ -311,7 +311,7 @@ kubectl get nodes
 
 #### Step 2 — Update Ollama Security Group
 
-> **⚠️ Networking is Now Simple**: Since EKS and Ollama are now in the **Same VPC (Default)**, you don't need peering or complex CIDRs. Just go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
+> Since EKS and Ollama are now in the **Same VPC (Default)**, Just go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
 > - **Port**: `11434`
 > - **Protocol**: `TCP`
 > - **Source**: **`eks-cluster-sg-bankapp-prod-cluster-...`** (Find the Security Group applied to your EKS nodes). 
@@ -337,7 +337,12 @@ Envoy Gateway is the industry-standard implementation of the Gateway API. It wil
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
 
 # Install Envoy Gateway via Helm
-helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.7.1 -n envoy-gateway-system --create-namespace
+helm install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.7.1 \
+  -n envoy-gateway-system \
+  --create-namespace \
+  --set service.type=LoadBalancer \
+  --set service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb
 
 # 3. Wait for the control plane to be ready
 kubectl wait -n envoy-gateway-system \
@@ -356,16 +361,22 @@ Cert-manager manages your TLS certificates. We must enable the **GatewayAPI** fe
 helm repo add jetstack https://charts.jetstack.io
 helm repo update
 
-# 2. Install cert-manager with Gateway API enabled
+# 2. Install cert-manager
 helm install cert-manager jetstack/cert-manager \
   --namespace cert-manager \
   --create-namespace \
   --version v1.17.1 \
-  --set crds.enabled=true \
+  --set installCRDs=true \
   --set "config.enableGatewayAPI=true"
 
-# 3. Verify cert-manager pods are running
+# 3. Wait for readiness
+kubectl wait --for=condition=Available deployment \
+  -l app.kubernetes.io/instance=cert-manager \
+  -n cert-manager --timeout=5m
+
+# 4. Verify
 kubectl get pods -n cert-manager
+kubectl get crds | grep cert-manager
 ```
 
 > **Note**: cert-manager will automatically provision and renew the TLS certificate for `bankapp.amitabh.cloud` via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
@@ -379,16 +390,25 @@ kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
 # Wait for pods to be ready
-kubectl get pods -n argocd --watch
+kubectl get pods -n argocd
 ```
 
 #### Step 6 — Expose & Login to ArgoCD
 
 ```bash
 # Expose ArgoCD UI via LoadBalancer
-kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+kubectl patch svc argocd-server -n argocd -p '{
+  "spec": {
+    "type": "LoadBalancer"
+  },
+  "metadata": {
+    "annotations": {
+      "service.beta.kubernetes.io/aws-load-balancer-type": "nlb"
+    }
+  }
+}'
 
-# Get the ArgoCD LoadBalancer URL (wait ~2 mins for it to provision)
+# Get the ArgoCD NLB URL (wait ~2 mins for it to provision)
 kubectl get svc argocd-server -n argocd
 
 # Get initial admin password
@@ -396,7 +416,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-Open the ArgoCD LB URL in a browser → Login with:
+Open the ArgoCD NLB URL in a browser after NLB is active(check from AWS Load balancer console) → Login with:
 - **Username**: `admin`
 - **Password**: output of the command above
 
