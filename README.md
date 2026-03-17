@@ -366,7 +366,7 @@ helm install cert-manager jetstack/cert-manager \
   --create-namespace \
   --version v1.17.1 \
   --set crds.enabled=true \
-  --set featureGates="GatewayAPI=true"
+  --set "config.enableGatewayAPI=true"
 
 # 3. Verify cert-manager pods are running
 kubectl get pods -n cert-manager
