@@ -309,14 +309,25 @@ Verify nodes are ready:
 kubectl get nodes
 ```
 
-#### Step 2 — Update Ollama Security Group
+#### Step 2 — Configure Ollama Networking
 
-> Since EKS and Ollama are now in the **Same VPC (Default)**, Just go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
-> - **Port**: `11434`
-> - **Protocol**: `TCP`
-> - **Source**: **`eks-cluster-sg-bankapp-prod-cluster-...`** (Find the Security Group applied to your EKS nodes). 
-> 
-> This allows the BankApp pods to talk to Ollama using its **Private IP** (`192.168.19.40`) without any restrictions.
+1. **Update Security Group**: Since EKS and Ollama are now in the **Same VPC (Default)**, find the **Ollama EC2's security group** and add an inbound rule: 
+   - **Port**: `11434`
+   - **Protocol**: `TCP`
+   - **Source**: **`eks-cluster-sg-bankapp-prod-cluster-...`** (The SG applied to your EKS nodes).
+
+2. **Update Helm Values**: Ensure the BankApp knows where to find Ollama.
+   - Open `charts/bankapp/values.yaml`.
+   - Update `ollama.url` with the **Private IP** of your Ollama EC2 (e.g., `http://172.31.x.x:11434`).
+
+3. **Push to GitHub**: For ArgoCD to pick up the change, you must push it:
+   ```bash
+   git add .
+   git commit -m "fix: update ollama private ip"
+   git push origin main
+   ```
+
+   > **Note**: This allows the BankApp pods to talk to Ollama using its **Private IP** without any restrictions.
 
 #### Step 3 — Create Namespace & DB Secret
 
