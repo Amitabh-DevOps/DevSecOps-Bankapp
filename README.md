@@ -348,45 +348,53 @@ kubectl get pods -n cert-manager
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
+# Wait for pods to be ready
+kubectl get pods -n argocd --watch
+```
+
+#### Step 6 — Expose & Login to ArgoCD
+
+```bash
 # Expose ArgoCD UI via LoadBalancer
 kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
 
+# Get the ArgoCD LoadBalancer URL (wait ~2 mins for it to provision)
+kubectl get svc argocd-server -n argocd
+
 # Get initial admin password
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-#### Step 6 — Update values.yaml
+Open the ArgoCD LB URL in a browser → Login with:
+- **Username**: `admin`
+- **Password**: output of the command above
 
-- Update `charts/bankapp/values.yaml` with your Ollama URL (domain is already set to `bankapp.amitabh.cloud`):
-
-   ```yaml
-   ollama:
-   url: "http://<OLLAMA-EC2-PRIVATE-IP>:11434"
-   ```
-
-- Also update the ECR repository URI.
-
-#### Step 7 — Configure DNS
-
-Once the cluster is running and the Gateway is provisioned, get the LoadBalancer address:
-
-```bash
-kubectl get gateway bankapp-gateway -n bankapp-prod
-```
-
-Then go to your DNS provider (for `amitabh.cloud`) and create:
-
-| Type | Name | Value |
-| :--- | :--- | :--- |
-| A / CNAME | `bankapp` | `<Gateway LoadBalancer IP or Hostname>` |
-
-#### Step 8 — Deploy via ArgoCD
+#### Step 7 — Deploy via ArgoCD (Apply Manifest)
 
 ```bash
 kubectl apply -f gitops/argocd-app.yaml
 ```
 
-ArgoCD will pick up `charts/bankapp` from the `main` branch and deploy all resources including Deployments, Services, PVC, Gateway, HTTPRoutes, and the cert-manager Certificate.
+ArgoCD will sync `charts/bankapp` from the `main` branch and deploy all resources: Deployments, Services, PVC, Gateway, HTTPRoutes, and cert-manager Certificate.
+
+Verify in ArgoCD UI that the app appears and starts syncing. Get the Gateway LoadBalancer address for DNS:
+
+```bash
+kubectl get svc -n bankapp-prod
+# or
+kubectl get gateway bankapp-gateway -n bankapp-prod
+```
+
+#### Step 8 — Configure DNS
+
+Once the Gateway/LoadBalancer address is available, go to your DNS provider (`amitabh.cloud`) and create:
+
+| Type | Name | Value |
+| :--- | :--- | :--- |
+| A / CNAME | `bankapp` | `<Gateway LoadBalancer IP or Hostname>` |
+
+> DNS propagation takes 1-5 minutes. Once done, Let's Encrypt will automatically provision the TLS certificate via HTTP01 challenge.
 
 #### Step 9 — Trigger the GitOps Pipeline
 
