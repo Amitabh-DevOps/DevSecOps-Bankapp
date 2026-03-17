@@ -93,11 +93,11 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 | **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
 | **Kubernetes** | Amazon EKS (cluster: `bankapp-prod-cluster`, nodegroup: `bankapp-ng`, t3.medium) |
 | **GitOps** | ArgoCD, Helm 3 |
-| **Networking** | Kubernetes Gateway API (GatewayClass: `amazon-vpc-lattice`) |
+| **Networking** | Kubernetes Gateway API (GatewayClass: `envoy`) |
 | **CI/CD** | GitHub Actions (OIDC, workflow_call pattern) |
 | **Security Tools** | Gitleaks, Checkstyle, Semgrep, OWASP Dependency Check, Trivy |
 | **Registry** | Amazon ECR |
-| **Secrets** | AWS Secrets Manager + Kubernetes Secrets |
+| **Secrets** | Kubernetes Secrets |
 
 ---
 
@@ -394,7 +394,7 @@ kubectl get crds | grep cert-manager
 
 > Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
 
-#### Step 5 — Install ArgoCD
+#### Step 6 — Install ArgoCD
 
 ```bash
 kubectl create namespace argocd
@@ -404,7 +404,7 @@ kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/st
 kubectl get pods -n argocd
 ```
 
-#### Step 6 — Expose & Login to ArgoCD
+#### Step 7 — Expose & Login to ArgoCD
 
 ```bash
 # Expose ArgoCD UI via LoadBalancer
@@ -431,7 +431,7 @@ Open the ArgoCD NLB URL in a browser after NLB is active(check from AWS Load bal
 - **Username**: `admin`
 - **Password**: output of the command above
 
-#### Step 7 — Deploy via ArgoCD (Apply Manifest)
+#### Step 8 — Deploy via ArgoCD (Apply Manifest)
 
 ```bash
 kubectl apply -f gitops/argocd-app.yaml
@@ -447,7 +447,7 @@ kubectl get svc -n bankapp-prod
 kubectl get gateway bankapp-gateway -n bankapp-prod
 ```
 
-#### Step 8 — Configure DNS
+#### Step 9 — Configure DNS
 
 Once the Gateway/LoadBalancer address is available, go to your DNS provider (`amitabh.cloud`) and create:
 
@@ -457,7 +457,7 @@ Once the Gateway/LoadBalancer address is available, go to your DNS provider (`am
 
 > DNS propagation takes 1-5 minutes. Once done, Let's Encrypt will automatically provision the TLS certificate via HTTP01 challenge.
 
-#### Step 9 — Trigger the GitOps Pipeline
+#### Step 10 — Trigger the GitOps Pipeline
 
 Push code to the `main` branch. GitHub Actions will:
 1. Run 8 security gates (Gitleaks → Checkstyle → Semgrep → OWASP DC → Build → Trivy → ECR Push → GitOps Update).
