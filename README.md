@@ -310,11 +310,15 @@ chmod +x scripts/eks-setup.sh
 ./scripts/eks-setup.sh
 ```
 
+> **Note**: This script will create the cluster, node group, OIDC provider, and the **EBS CSI Driver** (required for MySQL storage). It takes ~15-20 minutes.
+
 Verify nodes are ready:
 
 ```bash
 kubectl get nodes
 ```
+
+#### Step 2 — Update Ollama Security Group
 
 > **⚠️ Update Ollama Security Group now**: Since Ollama EC2 is deployed in the **same VPC as EKS**, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: Port `11434`, Source: **`ClusterSharedNodeSecurityGroup`** (named `eksctl-bankapp-cluster-cluster-ClusterSharedNodeSecurityGroup-...`). This allows BankApp pods running on EKS worker nodes to reach Ollama.
 
@@ -336,11 +340,13 @@ Envoy Gateway is the industry-standard implementation of the Gateway API. It wil
 # 1. Install standard Gateway API CRDs (required)
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
 
-# 2. Install Envoy Gateway v1.2.6
-kubectl apply --server-side -f https://github.com/envoyproxy/gateway/releases/download/v1.2.6/install.yaml
+# Install Envoy Gateway via Helm
+helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.1.0 -n envoy-gateway-system --create-namespace
 
 # 3. Wait for the control plane to be ready
-kubectl get pods -n envoy-gateway-system --watch
+kubectl wait -n envoy-gateway-system \
+  deployment/envoy-gateway \
+  --for=condition=Available --timeout=5m
 ```
 
 > **Note**: Envoy Gateway will manage the "Envoy Proxy" pods that handle the actual traffic to your BankApp.

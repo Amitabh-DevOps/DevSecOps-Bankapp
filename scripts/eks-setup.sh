@@ -7,7 +7,7 @@ REGION="us-east-1"
 NODE_GROUP_NAME="bankapp-ng"
 
 echo "Creating EKS Cluster: $CLUSTER_NAME..."
-eksctl create cluster --name $CLUSTER_NAME --region $REGION --without-nodegroup
+eksctl create cluster --name $CLUSTER_NAME --region $REGION --version 1.35 --without-nodegroup
 
 echo "Associating IAM OIDC Provider..."
 eksctl utils associate-iam-oidc-provider --region=$REGION --cluster=$CLUSTER_NAME --approve
@@ -26,6 +26,26 @@ eksctl create nodegroup \
 
 echo "Updating kubeconfig..."
 aws eks update-kubeconfig --region $REGION --name $CLUSTER_NAME
+
+echo "Installing EBS CSI Driver..."
+# 1. Create IAM Service Account for the EBS CSI Driver
+eksctl create iamserviceaccount \
+  --name ebs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster $CLUSTER_NAME \
+  --region $REGION \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve \
+  --role-only \
+  --role-name "EKS_EBS_CSI_DriverRole_$CLUSTER_NAME"
+
+# 2. Install the EBS CSI Addon
+eksctl create addon \
+  --name aws-ebs-csi-driver \
+  --cluster $CLUSTER_NAME \
+  --region $REGION \
+  --service-account-role-arn arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/EKS_EBS_CSI_DriverRole_$CLUSTER_NAME \
+  --force
 
 echo "Verifying nodes..."
 kubectl get nodes
