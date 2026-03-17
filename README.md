@@ -340,7 +340,7 @@ Envoy Gateway is the industry-standard implementation of the Gateway API. It wil
 kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
 
 # Install Envoy Gateway via Helm
-helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.1.0 -n envoy-gateway-system --create-namespace
+helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.7.1 -n envoy-gateway-system --create-namespace
 
 # 3. Wait for the control plane to be ready
 kubectl wait -n envoy-gateway-system \
