@@ -122,14 +122,29 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
    - Deploy an **Ubuntu 22.04** EC2 instance (recommended: `t3.medium` or larger).
    - Configure Security Group to allow **Port 22** (SSH).
-   - Attach an IAM Instance Profile with permissions:
+   - Attach an IAM Instance Profile with the following managed policies:
      - `AmazonEC2ContainerRegistryPowerUser` (ECR image push)
      - `AmazonEC2FullAccess` (VPC, subnets, security groups for eksctl)
      - `IAMFullAccess` (eksctl creates IAM roles for node groups)
      - `AWSCloudFormationFullAccess` (eksctl uses CloudFormation stacks internally)
-     - `AmazonEKSClusterPolicy` (EKS cluster operations)
 
-     > **Tip**: For a learning/demo setup, attaching **`AdministratorAccess`** is the simplest approach and avoids any permission gaps.
+   - Then add an **Inline Policy** named `EKSFullAccess`:
+     ```json
+     {
+         "Version": "2012-10-17",
+         "Statement": [
+             {
+                 "Effect": "Allow",
+                 "Action": "eks:*",
+                 "Resource": "*"
+             }
+         ]
+     }
+     ```
+
+     > **Why not `AmazonEKSClusterPolicy`?** That policy is meant to be attached to the EKS cluster's own service role — it grants EKS permissions to call EC2/ELB on your behalf. It does NOT grant your EC2 permission to call EKS APIs. The inline `eks:*` policy is what actually allows the EC2 to create and manage clusters.
+
+     > **Tip**: For simplest setup, attaching **`AdministratorAccess`** covers everything in one policy.
 
    - Connect via SSH and run(manually) or bootstrap using User Data:
 
@@ -167,10 +182,14 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
 3. **Ollama EC2** *(dedicated AI engine)*:
 
-   - Deploy a dedicated Ubuntu EC2 instance.
+   > **⚠️ Important — VPC placement**: `eksctl` creates the EKS cluster in a **new dedicated VPC** (typically `192.168.0.0/16`), not your default VPC. To avoid cross-VPC networking issues, you have two options:
+   > - **Recommended**: Launch Ollama EC2 **inside the same VPC that eksctl created** — find it in VPC console named `eksctl-bankapp-cluster-cluster/VPC`. Then SG referencing works directly.
+   > - **Alternative**: Launch in default VPC and set up **VPC Peering** between the two VPCs. Then add port `11434` inbound using the EKS VPC CIDR range instead of a security group.
+
+   - Deploy a Ubuntu EC2 instance (t3.medium) in the **EKS VPC** (see note above).
    - Open Inbound Port `11434` in the Ollama Security Group.
 
-      > For now, allow your **Management EC2's security group** temporarily. After the EKS cluster is created (Phase 4 Step 2), you'll update this rule to allow the **EKS node security group** instead — that's what the BankApp pods actually use to reach Ollama.
+      > **After** EKS cluster is created (Phase 4 Step 1): add inbound rule — Port `11434`, Source: `ClusterSharedNodeSecurityGroup` of the EKS cluster. This allows BankApp pods running on worker nodes to reach Ollama.
 
       ![ollama-sg](screenshots/8.png)
 
@@ -222,15 +241,9 @@ The pipeline uses **OpenID Connect (OIDC)** for keyless authentication between G
 ### Phase 3: Secrets and Pipeline Configuration
 
 #### 1. Kubernetes Secret (DB Password)
-The Helm chart reads the MySQL password from a Kubernetes Secret — create this **after** the EKS cluster and namespace are set up (Phase 4 Step 3):
+The Helm chart reads the MySQL password from a Kubernetes Secret named `bankapp-db-secrets`.
 
-```bash
-kubectl create secret generic bankapp-db-secrets \
-  --from-literal=password=<YOUR_DB_PASSWORD> \
-  -n bankapp-prod
-```
-
-> All other DB values (`host`, `port`, `name`, `user`) are configured directly in `charts/bankapp/values.yaml`. The Ollama URL is also set in `values.yaml`. **No AWS Secrets Manager is needed for the EKS deployment.**
+> This is created in **Phase 4 Step 2** after the EKS cluster and namespace exist. All other DB values (`host`, `port`, `name`, `user`) are set in `charts/bankapp/values.yaml`. **No AWS Secrets Manager needed.**
 
 #### 2. GitHub Repository Secrets
 Configure the following Action Secrets in **Settings → Secrets and variables → Actions**:
@@ -303,7 +316,7 @@ Verify nodes are ready:
 kubectl get nodes
 ```
 
-> **⚠️ Update Ollama Security Group now**: Now that the EKS cluster exists, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and update the port `11434` inbound rule source from your Management EC2's security group to the **EKS node group security group** (named `eks-cluster-sg-bankapp-cluster-...`). This is what allows BankApp pods to reach Ollama.
+> **⚠️ Update Ollama Security Group now**: Since Ollama EC2 is deployed in the **same VPC as EKS**, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: Port `11434`, Source: **`ClusterSharedNodeSecurityGroup`** (named `eksctl-bankapp-cluster-cluster-ClusterSharedNodeSecurityGroup-...`). This allows BankApp pods running on EKS worker nodes to reach Ollama.
 
 #### Step 3 — Create Namespace & DB Secret
 
