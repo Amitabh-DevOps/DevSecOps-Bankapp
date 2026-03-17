@@ -479,12 +479,14 @@ charts/bankapp/
 ├── values.yaml             # All configurable values (domain, image, DB, Nginx)
 └── templates/
     ├── _helpers.tpl        # Shared template helpers
+    ├── certificate.yaml    # cert-manager Certificate & Issuer
     ├── deployment.yaml     # BankApp Deployment (ECR image, health probes)
-    ├── service.yaml        # BankApp ClusterIP Service (port 8080)
+    ├── gateway.yaml        # Gateway API — Gateway resource (port 443 + TLS)
+    ├── gatewayclass.yaml   # Envoy Gateway Class definition
+    ├── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
     ├── nginx.yaml          # Nginx Demo Deployment + Service (conditional)
-    ├── gateway.yaml        # Gateway API — Gateway resource (port 80)
-    └── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
+    └── service.yaml        # BankApp ClusterIP Service (port 8080)
 ```
 
 **Path Routing:**
