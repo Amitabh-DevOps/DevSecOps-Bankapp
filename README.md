@@ -353,11 +353,22 @@ kubectl wait -n envoy-gateway-system \
 
 #### Step 5 — Install cert-manager (Let's Encrypt TLS)
 
-```bash
-# Install cert-manager CRDs + controller
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+Cert-manager manages your TLS certificates. We must enable the **GatewayAPI** feature gate so it can talk to Envoy.
 
-# Verify cert-manager pods are running
+```bash
+# 1. Add Jetstack Helm repo
+helm repo add jetstack https://charts.jetstack.io
+helm repo update
+
+# 2. Install cert-manager with Gateway API enabled
+helm install cert-manager jetstack/cert-manager \
+  --namespace cert-manager \
+  --create-namespace \
+  --version v1.17.1 \
+  --set crds.enabled=true \
+  --set featureGates="GatewayAPI=true"
+
+# 3. Verify cert-manager pods are running
 kubectl get pods -n cert-manager
 ```
 
