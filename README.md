@@ -33,7 +33,7 @@ graph TD
         OIDC[IAM OIDC Provider]
         OLLAMA[Ollama EC2\nAI Engine :11434]
 
-        subgraph "EKS Cluster — bankapp-cluster"
+        subgraph "EKS Cluster — bankapp-prod-cluster"
             ARGO[ArgoCD]
             GW[Gateway API\nbankapp-gateway]
             APP[BankApp Pods\nPort 8080]
@@ -91,7 +91,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 | **AI Integration** | Ollama (TinyLlama), REST |
 | **Database** | MySQL 8.0 (Kubernetes Pod) |
 | **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
-| **Kubernetes** | Amazon EKS (cluster: `bankapp-cluster`, nodegroup: `bankapp-ng`, t3.medium) |
+| **Kubernetes** | Amazon EKS (cluster: `bankapp-prod-cluster`, nodegroup: `bankapp-ng`, t3.medium) |
 | **GitOps** | ArgoCD, Helm 3 |
 | **Networking** | Kubernetes Gateway API (GatewayClass: `amazon-vpc-lattice`) |
 | **CI/CD** | GitHub Actions (OIDC, workflow_call pattern) |
@@ -314,7 +314,7 @@ kubectl get nodes
 > **⚠️ Networking is Now Simple**: Since EKS and Ollama are now in the **Same VPC (Default)**, you don't need peering or complex CIDRs. Just go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
 > - **Port**: `11434`
 > - **Protocol**: `TCP`
-> - **Source**: **`eks-cluster-sg-bankapp-cluster-...`** (Find the Security Group applied to your EKS nodes). 
+> - **Source**: **`eks-cluster-sg-bankapp-prod-cluster-...`** (Find the Security Group applied to your EKS nodes). 
 > 
 > This allows the BankApp pods to talk to Ollama using its **Private IP** (`192.168.19.40`) without any restrictions.
 

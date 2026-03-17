@@ -2,7 +2,7 @@
 # EKS Cluster Setup Script using eksctl
 # Following Gateway API requirements
 
-CLUSTER_NAME="bankapp-cluster"
+CLUSTER_NAME="bankapp-prod-cluster"
 REGION="us-east-1"
 NODE_GROUP_NAME="bankapp-ng"
 
