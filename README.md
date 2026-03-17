@@ -123,10 +123,15 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    - Deploy an **Ubuntu 22.04** EC2 instance (recommended: `t3.medium` or larger).
    - Configure Security Group to allow **Port 22** (SSH).
    - Attach an IAM Instance Profile with permissions:
-     - `AmazonEC2ContainerRegistryPowerUser`
-     - `AmazonEKSClusterPolicy` / `AmazonEKSWorkerNodePolicy` (for eksctl)
+     - `AmazonEC2ContainerRegistryPowerUser` (ECR image push)
+     - `AmazonEC2FullAccess` (VPC, subnets, security groups for eksctl)
+     - `IAMFullAccess` (eksctl creates IAM roles for node groups)
+     - `AWSCloudFormationFullAccess` (eksctl uses CloudFormation stacks internally)
+     - `AmazonEKSClusterPolicy` (EKS cluster operations)
 
-   - Connect via SSH and run the bootstrap User Data (or manually):
+     > **Tip**: For a learning/demo setup, attaching **`AdministratorAccess`** is the simplest approach and avoids any permission gaps.
+
+   - Connect via SSH and run(manually) or bootstrap using User Data:
 
       ```bash
       #!/bin/bash
