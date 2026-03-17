@@ -18,6 +18,8 @@ spec:
       containers:
         - name: nginx
           image: {{ .Values.nginx.image }}
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: {{ .Values.nginx.port }}
 ---

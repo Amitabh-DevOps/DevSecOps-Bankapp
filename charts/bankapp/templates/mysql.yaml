@@ -44,6 +44,8 @@ spec:
                 secretKeyRef:
                   name: bankapp-db-secrets
                   key: password
+          securityContext:
+            allowPrivilegeEscalation: false
           ports:
             - containerPort: 3306
               name: mysql
