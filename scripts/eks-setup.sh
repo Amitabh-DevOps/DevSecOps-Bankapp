@@ -7,7 +7,7 @@ REGION="us-east-1"
 NODE_GROUP_NAME="bankapp-ng"
 
 echo "Creating EKS Cluster: $CLUSTER_NAME..."
-eksctl create cluster --name $CLUSTER_NAME --region $REGION --version 1.35 --without-nodegroup
+eksctl create cluster --name $CLUSTER_NAME --region $REGION --version 1.35 --vpc-from-lookup-default --without-nodegroup
 
 echo "Associating IAM OIDC Provider..."
 eksctl utils associate-iam-oidc-provider --region=$REGION --cluster=$CLUSTER_NAME --approve

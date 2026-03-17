@@ -182,14 +182,8 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
 3. **Ollama EC2** *(dedicated AI engine)*:
 
-   > **⚠️ Important — VPC placement**: `eksctl` creates the EKS cluster in a **new dedicated VPC** (typically `192.168.0.0/16`), not your default VPC. To avoid cross-VPC networking issues, you have two options:
-   > - **Recommended**: Launch Ollama EC2 **inside the same VPC that eksctl created** — find it in VPC console named `eksctl-bankapp-cluster-cluster/VPC`. Then SG referencing works directly.
-   > - **Alternative**: Launch in default VPC and set up **VPC Peering** between the two VPCs. Then add port `11434` inbound using the EKS VPC CIDR range instead of a security group.
-
-   - Deploy a Ubuntu EC2 instance (t3.medium) in the **EKS VPC** (see note above).
+   - Deploy a Ubuntu EC2 instance (t3.medium) in the **Default VPC**.
    - Open Inbound Port `11434` in the Ollama Security Group.
-
-      > **After** EKS cluster is created (Phase 4 Step 1): add inbound rule — Port `11434`, Source: `ClusterSharedNodeSecurityGroup` of the EKS cluster. This allows BankApp pods running on worker nodes to reach Ollama.
 
       ![ollama-sg](screenshots/8.png)
 
@@ -303,14 +297,14 @@ Configure the following Action Secrets in **Settings → Secrets and variables �
 
 #### Step 1 — Create EKS Cluster
 
-Run the automated setup script (creates `bankapp-cluster` with nodegroup `bankapp-ng`, 2× t3.medium):
+Run the automated setup script. It uses **`--vpc-from-lookup-default`** to create the cluster inside your **Default VPC**, ensuring it shares the same network space as Ollama.
 
 ```bash
 chmod +x scripts/eks-setup.sh
 ./scripts/eks-setup.sh
 ```
 
-> **Note**: This script will create the cluster, node group, OIDC provider, and the **EBS CSI Driver** (required for MySQL storage). It takes ~15-20 minutes.
+> **Note**: This setup takes ~15-20 minutes.
 
 Verify nodes are ready:
 
@@ -320,10 +314,12 @@ kubectl get nodes
 
 #### Step 2 — Update Ollama Security Group
 
-> **⚠️ Update Ollama Security Group now**: Since Ollama EC2 is deployed in the **same VPC as EKS**, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
+> **⚠️ Networking is Now Simple**: Since EKS and Ollama are now in the **Same VPC (Default)**, you don't need peering or complex CIDRs. Just go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
 > - **Port**: `11434`
 > - **Protocol**: `TCP`
-> - **Source**: **`eks-cluster-sg-bankapp-cluster-...`** (Find the Security Group applied to your EKS nodes). This allows BankApp pods running on EKS worker nodes to reach Ollama AI.
+> - **Source**: **`eks-cluster-sg-bankapp-cluster-...`** (Find the Security Group applied to your EKS nodes). 
+> 
+> This allows the BankApp pods to talk to Ollama using its **Private IP** (`192.168.19.40`) without any restrictions.
 
 #### Step 3 — Create Namespace & DB Secret
 
