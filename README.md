@@ -320,7 +320,10 @@ kubectl get nodes
 
 #### Step 2 — Update Ollama Security Group
 
-> **⚠️ Update Ollama Security Group now**: Since Ollama EC2 is deployed in the **same VPC as EKS**, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: Port `11434`, Source: **`ClusterSharedNodeSecurityGroup`** (named `eksctl-bankapp-cluster-cluster-ClusterSharedNodeSecurityGroup-...`). This allows BankApp pods running on EKS worker nodes to reach Ollama.
+> **⚠️ Update Ollama Security Group now**: Since Ollama EC2 is deployed in the **same VPC as EKS**, go to **EC2 → Security Groups**, find the **Ollama EC2's security group**, and add an inbound rule: 
+> - **Port**: `11434`
+> - **Protocol**: `TCP`
+> - **Source**: **`eks-cluster-sg-bankapp-cluster-...`** (Find the Security Group applied to your EKS nodes). This allows BankApp pods running on EKS worker nodes to reach Ollama AI.
 
 #### Step 3 — Create Namespace & DB Secret
 
