@@ -8,7 +8,7 @@ domain: "bankapp.amitabh.cloud"
 image:
   repository: "981526069311.dkr.ecr.us-east-1.amazonaws.com/devsecops-bankapp"  # Your ECR repo URI
   pullPolicy: IfNotPresent
-  tag: "9febef6fe56c97798cdd885a52400c570aaee7d6"
+  tag: "62a0e444b8fba740ab82e3555127806eaa2a6964"
 
 service:
   type: ClusterIP
