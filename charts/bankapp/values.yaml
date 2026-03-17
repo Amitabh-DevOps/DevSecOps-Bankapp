@@ -26,7 +26,7 @@ ollama:
 
 gateway:
   name: "bankapp-gateway"
-  className: "amazon-vpc-lattice" # Or your preferred gateway controller
+  className: "envoy" # Envoy Gateway Controller
 
 nginx:
   enabled: true

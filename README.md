@@ -328,7 +328,27 @@ kubectl create secret generic bankapp-db-secrets \
   -n bankapp-prod
 ```
 
-#### Step 4 — Install cert-manager (Let's Encrypt TLS)
+#### Step 4 — Install Envoy Gateway
+
+Envoy Gateway is the industry-standard implementation of the Gateway API. It will automatically provision an AWS Network Load Balancer (NLB) for your cluster.
+
+```bash
+# 1. Install standard Gateway API CRDs (required)
+kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+
+# 2. Install Envoy Gateway via Helm
+helm install eg oci://docker.io/envoyproxy/gateway-helm \
+  --version v1.1.0 \
+  -n envoy-gateway-system \
+  --create-namespace
+
+# 3. Wait for the control plane to be ready
+kubectl get pods -n envoy-gateway-system --watch
+```
+
+> **Note**: Envoy Gateway will manage the "Envoy Proxy" pods that handle the actual traffic to your BankApp.
+
+#### Step 5 — Install cert-manager (Let's Encrypt TLS)
 
 ```bash
 # Install cert-manager CRDs + controller
