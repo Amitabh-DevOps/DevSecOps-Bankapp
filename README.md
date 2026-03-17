@@ -550,11 +550,7 @@ EKS Cluster
 kubectl exec -it <mysql-pod-name> -n bankapp-prod -- mysql -u bankuser -p bankapp -e "SELECT * FROM accounts;"
 ```
 
-**Ollama Connectivity:**
-
-```bash
-nc -zv <OLLAMA-PRIVATE-IP> 11434
-```
+![mysql-test](screenshots/27.png)
 
 ---
 
