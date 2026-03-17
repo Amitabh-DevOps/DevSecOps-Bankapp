@@ -6,8 +6,11 @@ CLUSTER_NAME="bankapp-cluster"
 REGION="us-east-1"
 NODE_GROUP_NAME="bankapp-ng"
 
-echo "Creating EKS Cluster: $CLUSTER_NAME..."
-eksctl create cluster --name $CLUSTER_NAME --region $REGION --version 1.35 --vpc-from-lookup-default --without-nodegroup
+echo "Fetching Default VPC Subnets..."
+PUBLIC_SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=$(aws ec2 describe-vpcs --filter "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)" --query 'Subnets[?MapPublicIpOnLaunch==`true`].SubnetId' --output text | tr '\t' ',')
+
+echo "Creating EKS Cluster: $CLUSTER_NAME in Default VPC (Subnets: $PUBLIC_SUBNETS)..."
+eksctl create cluster --name $CLUSTER_NAME --region $REGION --version 1.35 --vpc-public-subnets=$PUBLIC_SUBNETS --without-nodegroup
 
 echo "Associating IAM OIDC Provider..."
 eksctl utils associate-iam-oidc-provider --region=$REGION --cluster=$CLUSTER_NAME --approve

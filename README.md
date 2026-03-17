@@ -183,9 +183,6 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 3. **Ollama EC2** *(dedicated AI engine)*:
 
    - Deploy a Ubuntu EC2 instance (t3.medium) in the **Default VPC**.
-   - Open Inbound Port `11434` in the Ollama Security Group.
-
-      ![ollama-sg](screenshots/8.png)
 
    - Automate initialization using the [ollama-setup.sh](scripts/ollama-setup.sh) script via EC2 User Data.
 
