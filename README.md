@@ -556,6 +556,27 @@ kubectl exec -it <mysql-pod-name> -n bankapp-prod -- mysql -u bankuser -p bankap
 
 ---
 
+## 🧹 Cleanup & Cost Management
+
+To avoid ongoing AWS charges, decommission the infrastructure in this specific order:
+
+1. **Delete EKS Cluster & Node Groups**:
+   ```bash
+   eksctl delete cluster --name bankapp-prod-cluster --region us-east-1
+   ```
+
+2. **Delete Ollama EC2**:
+   - Manually terminate the Ollama EC2 instance in the AWS Console.
+
+3. **Delete Management EC2**:
+   - Manually terminate the Management EC2 instance in the AWS Console.
+
+4. **Verify Resource Cleanup**:
+   - Confirm all **CloudFormation Stacks** starting with `eksctl-` are deleted.
+   - Confirm no orphaned **Load Balancers** or **Elastic IPs** remain.
+
+---
+
 <div align="center">
 
 Happy Learning
