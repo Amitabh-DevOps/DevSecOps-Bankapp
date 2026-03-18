@@ -3,10 +3,10 @@
 
 replicaCount: 1
 
-domain: "REPLACE_WITH_IP.nip.io"
+domain: "98.93.105.120.nip.io"
 
 image:
-  repository: "your-dockerhub-username/devsecops-bankapp"  # Your Docker Hub repo URI
+  repository: "amitabhdevops/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent
   tag: "latest"
 

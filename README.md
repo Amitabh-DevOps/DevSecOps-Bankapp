@@ -162,9 +162,15 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    - Run Ollama locally:
    
       ```bash
-      docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-      docker exec -it ollama ollama run tinyllama
+      docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+
+      docker exec ollama ollama pull tinyllama
+      
+      # Test Ollama API access from the host (should return model info) 
+      curl http://localhost:11434/api/tags
       ```
+   - `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
+   
    - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. Verify with:
      ```bash
      ip addr show docker0 | grep inet
@@ -276,7 +282,7 @@ kubectl create namespace argocd
 
 kubectl apply -n argocd \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-  
+
 kubectl wait -n argocd --for=condition=Ready pods --all --timeout=5m
 ```
 
