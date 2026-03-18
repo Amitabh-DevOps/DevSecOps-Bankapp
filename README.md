@@ -157,7 +157,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
      ./scripts/kind-setup.sh
      ```
 
-   - This script creates a cluster with port mappings (80/443) and installs Envoy Gateway + ArgoCD.
+   - This script creates a cluster with port mappings (80/443) and installs Envoy Gateway.
 
    - Run Ollama locally:
    
@@ -267,17 +267,35 @@ kubectl get crds | grep cert-manager
 
 > Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
 
-#### Step 3 — Login to ArgoCD
+#### Step 3 — Install ArgoCD
 
-The setup script displays the initial admin password. Login to the ArgoCD UI (Exposed via standard Kubernetes service):
+Install ArgoCD manually after Kind + Envoy setup:
 
 ```bash
-# Access ArgoCD UI (if not exposed, use port-forward)
+kubectl create namespace argocd
+
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+  
+kubectl wait -n argocd --for=condition=Ready pods --all --timeout=5m
+```
+
+#### Step 4 — Login to ArgoCD
+
+Fetch initial admin password and login to ArgoCD UI:
+
+```bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+```
+
+Expose ArgoCD UI (if not externally exposed):
+
+```bash
 kubectl port-forward svc/argocd-server -n argocd 8081:443
 ```
 Login via `https://localhost:8081` with user `admin`.
 
-#### Step 4 — Deploy via ArgoCD (Apply Manifest)
+#### Step 5 — Deploy via ArgoCD (Apply Manifest)
 
 ```bash
 kubectl apply -f gitops/argocd-app.yaml
@@ -285,16 +303,16 @@ kubectl apply -f gitops/argocd-app.yaml
 
 ArgoCD will sync `charts/bankapp` and deploy all resources.
 
-#### Step 5 — Verify Access (Gateway API & nip.io)
+#### Step 6 — Verify Access (Gateway API & nip.io)
 
-The `kind-setup.sh` script automatically patches the Envoy Gateway service to **NodePort** (mapping 30080 -> 80 and 30443 -> 443). 
+The `kind-setup.sh` script attempts to patch the Envoy Gateway service to **NodePort** (mapping 30080 -> 80 and 30443 -> 443). If the Gateway service is not created yet, deploy/sync the app first, then rerun the patch command shown by the script.
 
 Since we are using **nip.io**, you do not need to configure manual DNS. Access your app at:
 `http://<YOUR_PUBLIC_IP>.nip.io`
 
 > **Note**: For Let's Encrypt to verify your domain and enable HTTPS, ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
-#### Step 6 — Trigger the GitOps Pipeline
+#### Step 7 — Trigger the GitOps Pipeline
 
 Push code to `main`. GitHub Actions will:
 1. Run 8 security gates.

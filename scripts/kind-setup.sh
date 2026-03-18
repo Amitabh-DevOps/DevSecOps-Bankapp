@@ -37,14 +37,6 @@ kubectl wait -n envoy-gateway-system \
   deployment/envoy-gateway \
   --for=condition=Available --timeout=5m
 
-echo "Installing ArgoCD..."
-# Use server-side apply to avoid oversized annotation errors on CRDs.
-kubectl create namespace argocd --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply --server-side --force-conflicts -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-
-echo "Waiting for ArgoCD pods..."
-kubectl wait -n argocd --for=condition=Ready pods --all --timeout=5m
-
 echo "Patching Envoy Gateway Service to NodePort..."
 # The Envoy data-plane service is created dynamically when a Gateway resource is applied.
 # We will wait up to 1 minute for it to appear (in case ArgoCD or a manual apply triggers it)
@@ -63,8 +55,8 @@ for i in {1..12}; do
   
   if [ $i -eq 12 ]; then
     echo "WARNING: Envoy data-plane service not found yet."
-    echo "This is expected if you haven't deployed the BankApp Gateway via ArgoCD yet."
-    echo "AFTER you sync the application in ArgoCD, run this command to enable access:"
+    echo "This is expected if you have not deployed the BankApp Gateway yet."
+    echo "AFTER you deploy/sync the application, run this command to enable access:"
     echo "  kubectl patch svc \$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/own-gateway-name=bankapp-gateway -o jsonpath='{.items[0].metadata.name}') -n envoy-gateway-system --type='merge' -p '{\"spec\": {\"type\": \"NodePort\", \"ports\": [{\"name\": \"http\", \"port\": 80, \"targetPort\": 10080, \"nodePort\": 30080}, {\"name\": \"https\", \"port\": 443, \"targetPort\": 10443, \"nodePort\": 30443}]}}'"
     echo "--------------------------------------------------"
   else
@@ -81,6 +73,5 @@ echo "--------------------------------------------------"
 echo "Recommended Domain (nip.io): $PUBLIC_IP.nip.io"
 echo "Update your charts/bankapp/values.yaml with this domain."
 echo "--------------------------------------------------"
-echo "ArgoCD Login Password:"
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
+echo "ArgoCD installation is now manual. See README for commands."
 echo "--------------------------------------------------"
