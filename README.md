@@ -88,7 +88,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 | :--- | :--- |
 | **Backend** | Java 21, Spring Boot 3.4.1, Spring Security, Spring Data JPA |
 | **Frontend** | Thymeleaf, Bootstrap |
-| **AI Integration** | Ollama (TinyLlama), REST |
+| **AI Integration** | Ollama (TinyLlama) |
 | **Database** | MySQL 8.0 (Kubernetes Pod) |
 | **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
 | **Kubernetes** | Kind (Kubernetes in Docker) |
@@ -119,7 +119,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 1. **Launch Instance**: 
    - AMI: **Ubuntu Server 24.04 LTS**.
    - Type: **t3.medium** (Min 2 vCPU, 4GB RAM).
-   - Security Group: Allow **80 (HTTP)**, **443 (HTTPS)**, and **8081 (ArgoCD)**.
+   - Security Group: Allow **22 (SSH)**, **80 (HTTP)**, **443 (HTTPS)**, and **8081 (ArgoCD)**.
 
 2. **Update & Install Docker & Helm**:
    ```bash
@@ -142,6 +142,14 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
       sudo mv ./kind /usr/local/bin/kind
       ```
 
+   - Install Kubectl
+
+     ```bash
+     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+     sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+     kubectl version --client
+     ```
+     
    - Run the automated setup script:
 
      ```bash
