@@ -226,11 +226,6 @@ The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 reque
    
    ![github-secret](screenshots/15.png)
 
-#### 3. Kubernetes Secret (DB Password)
-The Helm chart reads the MySQL password from a Kubernetes Secret named `bankapp-db-secrets`.
-
-> This is created in **Phase 3 Step 2** after the Kind cluster and namespace exist.
-
 ---
 
 ### Phase 3: Cloud-Native Deployment (GitOps + TLS)
