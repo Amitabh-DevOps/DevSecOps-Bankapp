@@ -121,13 +121,16 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    - Type: **t3.medium** (Min 2 vCPU, 4GB RAM).
    - Security Group: Allow **80 (HTTP)**, **443 (HTTPS)**, and **8081 (ArgoCD)**.
 
-2. **Update & Install Docker**:
+2. **Update & Install Docker & Helm**:
    ```bash
    sudo apt update && sudo apt upgrade -y
    
    # Install Docker
    sudo apt install docker.io -y
    sudo usermod -aG docker $USER && newgrp docker
+
+   # Install Helm
+   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
    ```
 
 #### Step 1 — Infrastructure Initialization (Kind)
@@ -148,12 +151,15 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
    - This script creates a cluster with port mappings (80/443) and installs Envoy Gateway + ArgoCD.
 
-2. **Ollama Setup (Docker)**:
    - Run Ollama locally:
    
+      ```bash
+      docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+      docker exec -it ollama ollama run tinyllama
+      ```
+   - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. Verify with:
      ```bash
-     docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-     docker exec -it ollama ollama run tinyllama
+     ip addr show docker0 | grep inet
      ```
 
 ---
@@ -249,7 +255,7 @@ kubectl get pods -n cert-manager
 kubectl get crds | grep cert-manager
 ```
 
-> **Note**: cert-manager will automatically provision and renew the TLS certificate for `bankapp.amitabh.cloud` via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
+> **Note**: cert-manager will automatically provision and renew the TLS certificate for your `nip.io` domain via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
 
 > Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
 
@@ -271,29 +277,16 @@ kubectl apply -f gitops/argocd-app.yaml
 
 ArgoCD will sync `charts/bankapp` and deploy all resources.
 
-#### Step 5 — Simulated LoadBalancer (Kind Patch)
+#### Step 5 — Verify Access (Gateway API & nip.io)
 
-In Kind, the `LoadBalancer` service stays "Pending" since there is no cloud provider. Run this to patch it with your local IP:
+The `kind-setup.sh` script automatically patches the Envoy Gateway service to **NodePort** (mapping 30080 -> 80 and 30443 -> 443). 
 
-```bash
-# 1. Identify the Envoy service
-export ENVOY_SVC=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/own-gateway-name=bankapp-gateway -o name)
+Since we are using **nip.io**, you do not need to configure manual DNS. Access your app at:
+`http://<YOUR_PUBLIC_IP>.nip.io`
 
-# 2. Patch it with 127.0.0.1 (Localhost)
-kubectl patch $ENVOY_SVC -n envoy-gateway-system --type='merge' -p '{"status": {"loadBalancer": {"ingress": [{"ip": "127.0.0.1"}]}}}'
-```
+> **Note**: For Let's Encrypt to verify your domain and enable HTTPS, ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
-#### Step 6 — Configure DNS
-
-Once patched, your Gateway will show `127.0.0.1` as the address. Go to your DNS provider (`amitabh.cloud`) and create:
-
-| Type | Name | Value |
-| :--- | :--- | :--- |
-| A Record | `bankapp` | `127.0.0.1` (or your machine's Public IP) |
-
-> **Note**: For Let's Encrypt to verify your domain, you **must** use your Public IP and ensure port **80** is forwarded to your machine.
-
-#### Step 7 — Trigger the GitOps Pipeline
+#### Step 6 — Trigger the GitOps Pipeline
 
 Push code to `main`. GitHub Actions will:
 1. Run 8 security gates.
@@ -337,8 +330,8 @@ graph TD
 | HTTP Routes | `kubectl get httproute -n bankapp-prod` |
 
 **Access Points:**
-*   **BankApp**: `https://bankapp.amitabh.cloud/`
-*   **Nginx Demo**: `https://bankapp.amitabh.cloud/nginx`
+*   **BankApp**: `https://<YOUR_PUBLIC_IP>.nip.io/`
+*   **Nginx Demo**: `https://<YOUR_PUBLIC_IP>.nip.io/nginx`
 *   **ArgoCD UI**: `https://localhost:8081` (via `kubectl port-forward`)
 
 ---

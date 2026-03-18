@@ -3,7 +3,7 @@
 
 replicaCount: 1
 
-domain: "bankapp.amitabh.cloud"
+domain: "REPLACE_WITH_IP.nip.io"
 
 image:
   repository: "your-dockerhub-username/devsecops-bankapp"  # Your Docker Hub repo URI
@@ -22,7 +22,7 @@ database:
   password: "" # To be provided from Secrets
 
 ollama:
-  url: "http://172.31.43.184:11434" # Replace with real Private IP
+  url: "http://172.17.0.1:11434" # Docker bridge IP for reaching host container
 
 gateway:
   name: "bankapp-gateway"
