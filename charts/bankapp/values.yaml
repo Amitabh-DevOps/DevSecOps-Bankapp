@@ -6,9 +6,9 @@ replicaCount: 1
 domain: "bankapp.amitabh.cloud"
 
 image:
-  repository: "981526069311.dkr.ecr.us-east-1.amazonaws.com/devsecops-bankapp"  # Your ECR repo URI
+  repository: "your-dockerhub-username/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent
-  tag: "fcd025fc520629efd738c2acfa468ac40efcf4e4"
+  tag: "latest"
 
 service:
   type: ClusterIP
