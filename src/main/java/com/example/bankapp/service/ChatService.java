@@ -8,9 +8,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -44,6 +46,11 @@ public class ChatService {
 
     public String chat(Account account, String userMessage) {
         List<Transaction> recent = accountService.getTransactionHistory(account);
+        String deterministicReply = tryBuildDeterministicReply(account, recent, userMessage);
+        if (deterministicReply != null) {
+            return deterministicReply;
+        }
+
         String context = buildContext(account, recent);
 
         RestTemplate restTemplate = restTemplateBuilder
@@ -58,6 +65,51 @@ public class ChatService {
         } catch (Exception e) {
             return "AI assistant is unavailable. Please try again shortly.";
         }
+    }
+
+    private String tryBuildDeterministicReply(Account account, List<Transaction> recent, String userMessage) {
+        String normalized = userMessage == null ? "" : userMessage.toLowerCase(Locale.ROOT);
+
+        boolean asksBalance = normalized.contains("balance") || normalized.contains("current balance");
+        if (asksBalance) {
+            return "Hi " + account.getUsername() + "! Your current balance is $" + formatMoney(account.getBalance()) + ".";
+        }
+
+        boolean asksTransactions = normalized.contains("transaction")
+            || normalized.contains("transactions")
+            || normalized.contains("history")
+            || normalized.contains("statement");
+        if (asksTransactions) {
+            if (recent.isEmpty()) {
+                return "Hi " + account.getUsername() + "! You do not have any transactions yet.";
+            }
+
+            int limit = Math.min(recent.size(), 4);
+            StringBuilder response = new StringBuilder("Hi ")
+                .append(account.getUsername())
+                .append("! Here are your recent transactions: ");
+
+            for (int i = 0; i < limit; i++) {
+                Transaction t = recent.get(i);
+                if (i > 0) {
+                    response.append("; ");
+                }
+                response.append(t.getTimestamp().toLocalDate())
+                    .append(" ")
+                    .append(t.getType())
+                    .append(" $")
+                    .append(formatMoney(t.getAmount()));
+            }
+
+            response.append(".");
+            return response.toString();
+        }
+
+        return null;
+    }
+
+    private String formatMoney(BigDecimal amount) {
+        return String.format(Locale.US, "%,.2f", amount);
     }
 
     private String askGemini(RestTemplate restTemplate, String context, String userMessage) {
