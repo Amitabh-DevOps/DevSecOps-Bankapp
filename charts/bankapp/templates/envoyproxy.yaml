@@ -9,24 +9,3 @@ spec:
     kubernetes:
       envoyService:
         type: NodePort
-  infraPatch:
-    type: JSONPatch
-    jsonPatches:
-      - group: ""
-        version: v1
-        kind: Service
-        name: envoy
-        patchType: JSONPatch
-        patches:
-          - op: replace
-            path: /spec/ports/0/nodePort
-            value: 30080
-          - op: replace
-            path: /spec/ports/1/nodePort
-            value: 30443
-          - op: replace
-            path: /spec/ports/0/port
-            value: 80
-          - op: replace
-            path: /spec/ports/1/port
-            value: 443
