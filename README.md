@@ -176,11 +176,11 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
          --set service.type=NodePort
       ```
   
-   - Wait for Envoy Gateway to be ready:
+      - Wait for Envoy Gateway to be ready:
    
-      ```bash
-      kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
-      ```
+         ```bash
+         kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
+         ```
 
    - Run Ollama locally:
     
