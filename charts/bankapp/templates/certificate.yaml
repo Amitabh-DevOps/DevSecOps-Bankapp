@@ -13,7 +13,17 @@ spec:
           gatewayHTTPRoute:
             parentRefs:
               - name: {{ .Values.gateway.name }}
-                namespace: bankapp-prod
-                
-# Only ClusterIssuer is needed.
-# The Certificate is managed automatically by the Gateway annotation.
+                namespace: {{ .Release.Namespace }}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: bankapp-tls-secret
+  namespace: {{ .Release.Namespace }}
+spec:
+  secretName: bankapp-tls-secret
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - {{ .Values.domain | quote }}

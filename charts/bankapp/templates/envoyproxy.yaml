@@ -8,8 +8,8 @@ spec:
     type: Kubernetes
     kubernetes:
       envoyService:
+        name: bankapp-envoy
         type: NodePort
-        # Modern v1.x way to declare NodePorts
         ports:
           - name: http
             port: 80
@@ -17,20 +17,3 @@ spec:
           - name: https
             port: 443
             nodePort: 30443
-  # Backup: Strategic Merge Patch (supported in EG 1.5+)
-  infraPatch:
-    type: StrategicMergePatch
-    strategicMergePatches:
-      - group: ""
-        version: v1
-        kind: Service
-        name: envoy
-        patch:
-          spec:
-            ports:
-              - name: http
-                port: 80
-                nodePort: 30080
-              - name: https
-                port: 443
-                nodePort: 30443

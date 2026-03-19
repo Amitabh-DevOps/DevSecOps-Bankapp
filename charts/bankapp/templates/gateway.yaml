@@ -2,10 +2,13 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
   name: {{ .Values.gateway.name }}
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
   gatewayClassName: {{ .Values.gateway.className }}
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: bankapp-proxy-config
   listeners:
     - name: http
       protocol: HTTP
