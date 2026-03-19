@@ -44,6 +44,20 @@ spec:
                   key: password
             - name: OLLAMA_URL
               value: {{ .Values.ollama.url | quote }}
+            - name: AI_PROVIDER
+              value: {{ .Values.ai.provider | quote }}
+            - name: AI_FALLBACK_TO_OLLAMA
+              value: {{ .Values.ai.fallbackToOllama | quote }}
+            - name: GEMINI_MODEL
+              value: {{ .Values.gemini.model | quote }}
+            - name: GEMINI_API_URL
+              value: {{ .Values.gemini.apiUrl | quote }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bankapp-ai-secrets
+                  key: gemini-api-key
+                  optional: true
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
