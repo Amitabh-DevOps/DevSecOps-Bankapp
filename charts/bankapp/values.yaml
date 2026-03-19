@@ -3,8 +3,6 @@
 
 replicaCount: 1
 
-domain: "3.84.87.197.nip.io"
-
 image:
   repository: "amitabhdevops/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent

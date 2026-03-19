@@ -50,7 +50,7 @@ graph TD
     ARGO -->|Watch & Sync| REPO
     ARGO -->|Deploy/Update| APP
 
-    USER[User Browser] -->|bankapp.amitabh.cloud| GW
+    USER[User Browser] -->|http://EC2_IP:30080| GW
     GW -->|Route /| APP
     GW -->|Route /nginx| NGX
 
@@ -251,7 +251,7 @@ The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 reque
 
 ---
 
-### Phase 3: Cloud-Native Deployment (GitOps + TLS)
+### Phase 3: Cloud-Native Deployment (GitOps + Gateway API)
 
 #### Step 1 — Create Namespace & DB Secret
 
@@ -263,33 +263,13 @@ kubectl create secret generic bankapp-db-secrets \
   -n bankapp-prod
 ```
 
-#### Step 2 — Install cert-manager (Let's Encrypt TLS)
+#### Step 2 — Verify Kind Networking
 
-```bash
-# 1. Add Jetstack Helm repo
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
+Ensure your EC2 Security Group allows traffic on port **30080**.
 
-# 2. Install cert-manager
-helm install cert-manager jetstack/cert-manager \
-  -n cert-manager --create-namespace \
-  --version v1.17.1 \
-  --set installCRDs=true \
-  --set "config.enableGatewayAPI=true"
+> **Note**: In a Kind cluster, we use **NodePort** to expose the Gateway. Our `envoyproxy.yaml` manifest is configured to use port **30080** for HTTP traffic, matching the port mapping in our `kind-setup.sh`.
 
-# 3. Wait for readiness
-kubectl wait --for=condition=Available deployment \
-  -l app.kubernetes.io/instance=cert-manager \
-  -n cert-manager --timeout=5m
-
-# 4. Verify
-kubectl get pods -n cert-manager
-kubectl get crds | grep cert-manager
-```
-
-> **Note**: cert-manager will automatically provision and renew the TLS certificate for your `nip.io` domain via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
-
-> Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
+> **ArgoCD Manual Apply**: Since Kind uses NodePorts, we link the Gateway to a specific `EnvoyProxy` configuration. To ensure ArgoCD remains "Synced", the `ignoreDifferences` in `gitops/argocd-app.yaml` are essential.
 
 #### Step 3 — Install ArgoCD
 
@@ -387,9 +367,9 @@ graph TD
 | HTTP Routes | `kubectl get httproute -n bankapp-prod` |
 
 **Access Points:**
-*   **BankApp**: `https://<YOUR_PUBLIC_IP>.nip.io/`
-*   **Nginx Demo**: `https://<YOUR_PUBLIC_IP>.nip.io/nginx`
-*   **ArgoCD UI**: `https://localhost:8081` (via `kubectl port-forward`)
+*   **BankApp**: `http://<YOUR_PUBLIC_IP>:30080/`
+*   **Nginx Demo**: `http://<YOUR_PUBLIC_IP>:30080/nginx`
+*   **ArgoCD UI**: `http://<YOUR_PUBLIC_IP>:8081` (via `kubectl port-forward`)
 
 ---
 
@@ -398,25 +378,24 @@ graph TD
 ```
 charts/bankapp/
 ├── Chart.yaml              # Chart metadata (name: bankapp, version: 0.1.0)
-├── values.yaml             # All configurable values (domain, image, DB, Nginx)
+├── values.yaml             # All configurable values (image, DB, Nginx)
 └── templates/
     ├── _helpers.tpl        # Shared template helpers
-    ├── certificate.yaml    # cert-manager Certificate & Issuer
     ├── deployment.yaml     # BankApp Deployment (Docker Hub image, health probes)
     ├── envoyproxy.yaml     # Declarative NodePort configuration for Kind
-    ├── gateway.yaml        # Gateway API — Gateway resource (port 443 + TLS)
+    ├── gateway.yaml        # Gateway API — Gateway resource (port 80)
     ├── gatewayclass.yaml   # Envoy Gateway Class (linked to EnvoyProxy)
-    ├── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
+    ├── httproute.yaml      # Gateway API — HTTPRoute (path-based routing)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
-    ├── nginx.yaml          # Nginx Demo Deployment + Service (conditional)
+    ├── nginx.yaml          # Nginx Demo Deployment + Service
     └── service.yaml        # BankApp ClusterIP Service (port 8080)
 ```
 
 **Path Routing:**
 | Path | Backend | Description |
 | :--- | :--- | :--- |
-| `your-domain.com/` | BankApp (port 8080) | Spring Boot Banking Application |
-| `your-domain.com/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
+| `/` | BankApp (port 8080) | Spring Boot Banking Application |
+| `/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
 
 **ArgoCD Application** (`gitops/argocd-app.yaml`):
 - Points to `charts/bankapp` in this repo.

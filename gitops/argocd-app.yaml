@@ -21,21 +21,3 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-  ignoreDifferences:
-    - group: gateway.envoyproxy.io
-      kind: EnvoyProxy
-      jsonPointers:
-        - /metadata/finalizers
-        - /status
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      jsonPointers:
-        - /status
-    - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      jsonPointers:
-        - /status
-    - group: cert-manager.io
-      kind: Certificate
-      jsonPointers:
-        - /status

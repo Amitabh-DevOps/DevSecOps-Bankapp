@@ -27,8 +27,10 @@ PUBLIC_IP=$(curl -s ifconfig.me)
 
 echo "Kind Setup Complete!"
 echo "--------------------------------------------------"
-echo "Recommended Domain (nip.io): $PUBLIC_IP.nip.io"
-echo "Update your charts/bankapp/values.yaml with this domain."
+echo "Public IP: $PUBLIC_IP"
+echo "Access points (once deployed):"
+echo "BankApp: http://$PUBLIC_IP:30080/"
+echo "Nginx Demo: http://$PUBLIC_IP:30080/nginx"
 echo "--------------------------------------------------"
 echo "NEXT STEPS (refer to README.md):"
 echo "1. Install Gateway API CRDs"
