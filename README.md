@@ -440,10 +440,7 @@ To delete the local infrastructure:
    kind delete cluster --name bankapp-kind-cluster
    ```
 
-2. **Delete ArgoCD and cert-manager (optional)**:
-   ```bash
-   kubectl delete namespace argocd cert-manager bankapp-prod --ignore-not-found
-   ```
+2. **Delete EC2 Instance**
    
 ---
 
