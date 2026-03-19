@@ -139,8 +139,18 @@ public class ChatService {
             return "Sorry, I couldn't process that.";
         }
 
-        Object text = parts.get(0).get("text");
-        return text == null ? "Sorry, I couldn't process that." : text.toString();
+        StringBuilder merged = new StringBuilder();
+        for (Map<String, Object> part : parts) {
+            Object text = part.get("text");
+            if (text != null) {
+                if (merged.length() > 0) {
+                    merged.append("\n");
+                }
+                merged.append(text);
+            }
+        }
+
+        return merged.length() == 0 ? "Sorry, I couldn't process that." : merged.toString();
     }
 
     private String buildContext(Account account, List<Transaction> transactions) {
