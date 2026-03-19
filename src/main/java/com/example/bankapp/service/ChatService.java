@@ -9,7 +9,6 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -17,31 +16,19 @@ import java.util.Map;
 @Service
 public class ChatService {
 
-    @Value("${ollama.url}")
-    private String ollamaUrl;
-
-    @Value("${ollama.model}")
-    private String model;
-
-    @Value("${ai.provider:ollama}")
-    private String aiProvider;
-
-    @Value("${ai.fallback-to-ollama:true}")
-    private boolean fallbackToOllama;
-
     @Value("${gemini.api.url:https://generativelanguage.googleapis.com/v1beta/models}")
     private String geminiApiUrl;
 
-    @Value("${gemini.model:gemini-1.5-flash}")
+    @Value("${gemini.model:gemini-3-flash-preview}")
     private String geminiModel;
 
     @Value("${gemini.api.key:}")
     private String geminiApiKey;
 
-    @Value("${ollama.timeout.connect-ms:3000}")
+    @Value("${ai.timeout.connect-ms:3000}")
     private int connectTimeoutMs;
 
-    @Value("${ollama.timeout.read-ms:30000}")
+    @Value("${ai.timeout.read-ms:30000}")
     private int readTimeoutMs;
 
     private final RestTemplateBuilder restTemplateBuilder;
@@ -62,42 +49,12 @@ public class ChatService {
             .build();
 
         try {
-            if ("gemini".equalsIgnoreCase(aiProvider)) {
-                return askGemini(restTemplate, context, userMessage);
-            }
-            return askOllama(restTemplate, context, userMessage);
+            return askGemini(restTemplate, context, userMessage);
         } catch (ResourceAccessException e) {
             return "AI assistant is taking longer than expected. Please try again in a few seconds.";
         } catch (Exception e) {
-            if ("gemini".equalsIgnoreCase(aiProvider) && fallbackToOllama) {
-                try {
-                    return askOllama(restTemplate, context, userMessage);
-                } catch (Exception ignored) {
-                    return "AI assistant is unavailable. Please try again shortly.";
-                }
-            }
             return "AI assistant is unavailable. Please try again shortly.";
         }
-    }
-
-    private String askOllama(RestTemplate restTemplate, String context, String userMessage) {
-        Map<String, Object> request = Map.of(
-            "model", model,
-            "messages", List.of(
-                Map.of("role", "system", "content", context),
-                Map.of("role", "user", "content", userMessage)
-            ),
-            "stream", false
-        );
-
-        Map<String, Object> response = restTemplate.postForObject(
-            ollamaUrl + "/api/chat", request, Map.class
-        );
-        if (response != null && response.containsKey("message")) {
-            Map<String, String> message = (Map<String, String>) response.get("message");
-            return message.getOrDefault("content", "Sorry, I couldn't process that.");
-        }
-        return "Sorry, I couldn't process that.";
     }
 
     private String askGemini(RestTemplate restTemplate, String context, String userMessage) {

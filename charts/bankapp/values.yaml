@@ -19,12 +19,9 @@ database:
   user: "bankuser"
   password: "" # To be provided from Secrets
 
-ollama:
-  url: "http://172.17.0.1:11434" # Docker bridge IP for reaching host container
-
 ai:
-  provider: "gemini" # ollama | gemini
-  fallbackToOllama: false
+  timeoutConnectMs: 3000
+  timeoutReadMs: 30000
 
 gemini:
   model: "gemini-3-flash-preview"

@@ -31,7 +31,7 @@ graph TD
     subgraph "Local Environment / VM"
         DH[Docker Hub\nContainer Registry]
         SEC[GitHub Secrets\nAuth Management]
-        OLLAMA[Ollama Docker\nAI Engine :11434]
+      GEMINI[Gemini API\nExternal AI Service]
 
         subgraph "Kind Cluster — bankapp-kind-cluster"
             ARGO[ArgoCD]
@@ -56,7 +56,7 @@ graph TD
 
     APP -->|Pull Image| DH
     APP -->|JDBC| DB
-    APP -->|REST :11434| OLLAMA
+   APP -->|HTTPS API| GEMINI
 ```
 
 ---
@@ -88,7 +88,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 | :--- | :--- |
 | **Backend** | Java 21, Spring Boot 3.4.1, Spring Security, Spring Data JPA |
 | **Frontend** | Thymeleaf, Bootstrap |
-| **AI Integration** | Ollama (TinyLlama) |
+| **AI Integration** | Google Gemini API (`gemini-3-flash-preview`) |
 | **Database** | MySQL 8.0 (Kubernetes Pod) |
 | **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
 | **Kubernetes** | Kind (Kubernetes in Docker) |
@@ -111,7 +111,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 > | 1 | **EC2 (Ubuntu)**| Host Instance | Launch `t3.medium` (Ubuntu 24.04) |
 > | 2 | **Docker** | Container Runtime | Install via `apt` |
 > | 3 | **Kind** | Local Kubernetes Cluster | Install via binary |
-> | 4 | **Ollama** | Runs Ollama AI engine | Run as Docker container |
+> | 4 | **Gemini API Key** | Enables AI assistant responses | Store in Kubernetes Secret |
 > | 5 | **kubectl/Helm** | Cluster management | Install binaries |
 
 #### Step 0 — EC2 Launch & Docker Setup
@@ -182,18 +182,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
          kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
          ```
 
-   - Run Ollama locally:
-    
-      ```bash
-      docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-
-      docker exec ollama ollama pull tinyllama
-       
-      # Test Ollama API access from the host (should return model info) 
-      curl http://localhost:11434/api/tags
-      ```
-
-      > `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
+   - No local AI runtime is required. This project uses Gemini over HTTPS.
     
    - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. 
    
@@ -257,7 +246,7 @@ The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 reque
 
 ### Phase 3: Cloud-Native Deployment (GitOps + Gateway API)
 
-#### Step 1 — Create Namespace & DB Secret
+#### Step 1 — Create Namespace, DB Secret, and Gemini Secret
 
 ```bash
 kubectl create namespace bankapp-prod
@@ -265,6 +254,10 @@ kubectl create namespace bankapp-prod
 kubectl create secret generic bankapp-db-secrets \
   --from-literal=password=<YOUR_DB_PASSWORD> \
   -n bankapp-prod
+
+kubectl create secret generic gemini-secrets \
+   --from-literal=api-key=<YOUR_GEMINI_API_KEY> \
+   -n bankapp-prod
 ```
 
 #### Step 2 — Verify Kind Networking
@@ -292,6 +285,8 @@ gateway:
 ```
 
 > **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
+>
+> **Important**: `gemini.apiKeySecretName` and `gemini.apiKeySecretKey` in `charts/bankapp/values.yaml` must match the Kubernetes secret created above.
 
 > **Important**: Replace any placeholder/default values in `charts/bankapp/values.yaml` (especially `gateway.host` and `gateway.tls.certManager.email`) with your own environment values before syncing with ArgoCD.
 
@@ -511,9 +506,9 @@ To delete the local infrastructure:
    kind delete cluster --name bankapp-kind-cluster
    ```
 
-2. **Delete Ollama Container**:
+2. **Delete ArgoCD and cert-manager (optional)**:
    ```bash
-   docker stop ollama && docker rm ollama
+   kubectl delete namespace argocd cert-manager bankapp-prod --ignore-not-found
    ```
 
 

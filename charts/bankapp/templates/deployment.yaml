@@ -42,12 +42,10 @@ spec:
                 secretKeyRef:
                   name: bankapp-db-secrets
                   key: password
-            - name: OLLAMA_URL
-              value: {{ .Values.ollama.url | quote }}
-            - name: AI_PROVIDER
-              value: {{ .Values.ai.provider | quote }}
-            - name: AI_FALLBACK_TO_OLLAMA
-              value: {{ .Values.ai.fallbackToOllama | quote }}
+            - name: AI_TIMEOUT_CONNECT_MS
+              value: {{ .Values.ai.timeoutConnectMs | quote }}
+            - name: AI_TIMEOUT_READ_MS
+              value: {{ .Values.ai.timeoutReadMs | quote }}
             - name: GEMINI_MODEL
               value: {{ .Values.gemini.model | quote }}
             - name: GEMINI_API_URL
