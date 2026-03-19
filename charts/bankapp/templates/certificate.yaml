@@ -5,7 +5,7 @@ metadata:
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    email: amitabhsoni2004@gmail.com  # Replace with your email for Let's Encrypt notifications
+    email: amitabhdevops2024@gmail.com  # Replace with your email for Let's Encrypt notifications
     privateKeySecretRef:
       name: letsencrypt-prod-account-key
     solvers:
