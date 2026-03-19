@@ -363,11 +363,15 @@ Push code to `main`. GitHub Actions will:
 - For open-ended prompts (for example: financial concepts), responses are generated through Gemini.
 - Fast responses are therefore expected for balance/transaction questions and do not always indicate an external AI call.
 
+<div align="center">
+
 ![ai-working](screenshots/ai-working-1.png)
 
 ![ai-transaction](screenshots/ai-transaction-working.png)
 
 ![ai-working](screenshots/ai-working-2.png)
+
+</div>
 
 ---
 
