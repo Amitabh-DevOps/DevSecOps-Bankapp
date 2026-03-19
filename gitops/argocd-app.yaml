@@ -21,3 +21,9 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+  ignoreDifferences:
+    - group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      jsonPointers:
+        - /metadata/finalizers
+        - /status
