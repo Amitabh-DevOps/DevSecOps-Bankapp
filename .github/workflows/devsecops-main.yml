@@ -2,7 +2,7 @@ name: DevSecOps Main Pipeline
 
 on:
   push:
-    branches: [ main, aws, local ]
+    branches: [ main ]
     paths-ignore:
       - '**.md'
       - '.gitignore'

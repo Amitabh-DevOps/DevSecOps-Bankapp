@@ -2,7 +2,7 @@
 
 # DevSecOps Banking Application
 
-A high-performance, cloud-native financial platform built with Spring Boot 3 and Java 21. Deployed on **Kind (Kubernetes in Docker)** with a fully automated **GitOps pipeline** using GitHub Actions, ArgoCD, and Helm — enforcing **8 sequential security gates** before any code reaches production.
+A high-performance, cloud-native financial platform built with Spring Boot 3 and Java 21. Deployed on **Kind (Kubernetes in Docker)** with a fully automated **GitOps pipeline** using GitHub Actions, ArgoCD, and Helm - enforcing **8 sequential security gates** before any code reaches production.
 
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
@@ -20,44 +20,7 @@ A high-performance, cloud-native financial platform built with Spring Boot 3 and
 
 The application is deployed on a modern, cloud-native **Kind** cluster. GitHub Actions handles all CI/CD security gates, then updates Helm manifests in the repo, which **ArgoCD** automatically synchronizes to the cluster.
 
-```mermaid
-graph TD
-    subgraph "CI/CD Control Plane"
-        DEV[Developer Push]
-        GH[GitHub Actions]
-        REPO[(GitHub Repo\nHelm Manifests)]
-    end
-
-    subgraph "Local Environment / VM"
-        DH[Docker Hub\nContainer Registry]
-        SEC[GitHub Secrets\nAuth Management]
-      GEMINI[Gemini API\nExternal AI Service]
-
-        subgraph "Kind Cluster — bankapp-kind-cluster"
-            ARGO[ArgoCD]
-            GW[Gateway API\nbankapp-gateway]
-            APP[BankApp Pods\nPort 8080]
-            NGX[Nginx Demo Pods\nPort 80]
-            DB[(MySQL 8.0 Pod\nPVC: 10Gi)]
-        end
-    end
-
-    DEV -->|git push| GH
-    GH -->|Secret Auth| SEC
-    GH -->|Push image| DH
-    GH -->|Update values.yaml| REPO
-
-    ARGO -->|Watch & Sync| REPO
-    ARGO -->|Deploy/Update| APP
-
-   USER[User Browser] -->|http/https://PUBLIC_IP.nip.io| GW
-    GW -->|Route /| APP
-    GW -->|Route /nginx| NGX
-
-    APP -->|Pull Image| DH
-    APP -->|JDBC| DB
-   APP -->|HTTPS API| GEMINI
-```
+![architecture](screenshots/architecture.png)
 
 ---
 
@@ -216,7 +179,7 @@ The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 reque
 
 **Step 1: Request the API Key**
 - Go to [https://nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key).
-- Enter your `Organzation name`, `email address`, and select `organization type`.
+- Enter your `Organization name`, `email address`, and select `organization type`.
 - Accept **Terms of Use** and Click **Submit**.
 
    ![request](screenshots/22.png)
@@ -271,18 +234,6 @@ Ensure your EC2 Security Group allows traffic on ports **80** and **443** (host 
 #### Step 2.1 — Configure nip.io Hostname + TLS Values
 
 Update `charts/bankapp/values.yaml` before ArgoCD sync:
-
-```yaml
-gateway:
-   host: "<YOUR_PUBLIC_IP>.nip.io"
-   tls:
-      enabled: true
-      secretName: "bankapp-tls"
-      certManager:
-         enabled: true
-         issuerName: "letsencrypt-prod"
-         email: "you@example.com"
-```
 
 > **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
 >
@@ -376,7 +327,7 @@ If the reason shows `gateway api is not enabled`, re-run the cert-manager patch 
 
 #### Step 7 — Trigger the GitOps Pipeline
 
-Push code to a branch that triggers the pipeline (currently `main`, `aws`, or `local`). GitHub Actions will:
+Push code to `main`. GitHub Actions will:
 1. Run 8 security gates.
 2. Gate 8 commits the new tag to `values.yaml`.
 3. ArgoCD auto-syncs the new image to the Kind cluster.

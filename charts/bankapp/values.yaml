@@ -31,7 +31,7 @@ gemini:
 gateway:
   name: "bankapp-gateway"
   className: "envoy" # Envoy Gateway Controller
-  host: "18.206.95.119.nip.io"
+  host: "54.91.43.65.nip.io"
   envoyProxy:
     name: "bankapp-proxy-config"
     serviceType: NodePort

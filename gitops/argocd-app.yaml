@@ -7,7 +7,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Amitabh-DevOps/DevSecOps-Bankapp.git
-    targetRevision: local
+    targetRevision: main
     path: charts/bankapp
     helm:
       valueFiles:
