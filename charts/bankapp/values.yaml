@@ -8,7 +8,7 @@ domain: "3.84.87.197.nip.io"
 image:
   repository: "amitabhdevops/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent
-  tag: "77fd6565f31206f45d6e5792155577848cc01f00"
+  tag: "6089b7e78d77f5a9e24eea66c109a518d47605e0"
 
 service:
   type: ClusterIP
