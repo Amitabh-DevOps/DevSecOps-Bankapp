@@ -5,16 +5,16 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   provider:
-    type: Kubernetes
     kubernetes:
       envoyService:
-        type: NodePort
         ports:
           - name: http
-            port: 80
             nodePort: 30080
+            port: 80
             protocol: TCP
           - name: https
-            port: 443
             nodePort: 30443
+            port: 443
             protocol: TCP
+        type: NodePort
+    type: Kubernetes
