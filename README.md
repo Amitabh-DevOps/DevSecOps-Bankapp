@@ -338,6 +338,8 @@ kubectl describe challenge -n bankapp-prod
 ```
 
 If the reason shows `gateway api is not enabled`, re-run the cert-manager patch command from Step 2.2 and recreate ACME resources.
+
+> If Certificate is issued and ArgoCD Application is healthy, then ignore this step and proceed to next step.
  
 > **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
@@ -350,11 +352,21 @@ Push code to `main`. GitHub Actions will:
 
 ![github-action-success](screenshots/github-action-success.png)
 
+![app-dashboard](screenshots/app-dashboard.png)
+
+![app-transaction](screenshots/app-transaction.png)
+
 #### AI Assistant Behavior (Current)
 
 - For account-specific intents like balance and transaction history, the backend can return deterministic answers directly from the database for reliability and speed.
 - For open-ended prompts (for example: financial concepts), responses are generated through Gemini.
 - Fast responses are therefore expected for balance/transaction questions and do not always indicate an external AI call.
+
+![ai-working](screenshots/ai-working-1.png)
+
+![ai-transaction](screenshots/ai-transaction-working.png)
+
+![ai-working](screenshots/ai-working-2.png)
 
 ---
 
