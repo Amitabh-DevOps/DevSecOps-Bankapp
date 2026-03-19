@@ -224,7 +224,7 @@ kubectl create secret generic bankapp-ai-secrets \
    -n bankapp-prod
 ```
 
-> Get Gemini API key from Google AI Studio (https://aistudio.google.com/api-keys). This key is required for the AI assistant functionality in the BankApp backend. If you do not have a Gemini API key, you can still deploy and run the application, but AI-powered features will not work.
+> Get Gemini API key from [Google AI Studio](https://aistudio.google.com/api-keys). This key is required for the AI assistant functionality in the BankApp backend. If you do not have a Gemini API key, you can still deploy and run the application, but AI-powered features will not work.
 
 #### Step 2 — Verify Kind Networking
 
@@ -339,7 +339,8 @@ kubectl describe challenge -n bankapp-prod
 
 If the reason shows `gateway api is not enabled`, re-run the cert-manager patch command from Step 2.2 and recreate ACME resources.
 
-> If Certificate is issued and ArgoCD Application is healthy, then ignore this step and proceed to next step.
+> **Note**: `Challenge` resources are temporary. If certificate issuance already succeeded, `kubectl describe challenge -n bankapp-prod` may return `No resources found`, which is normal.
+> Check `kubectl get certificate -n bankapp-prod` and confirm `READY=True`.
  
 > **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
