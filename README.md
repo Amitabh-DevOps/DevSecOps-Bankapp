@@ -255,8 +255,8 @@ kubectl create secret generic bankapp-db-secrets \
   --from-literal=password=<YOUR_DB_PASSWORD> \
   -n bankapp-prod
 
-kubectl create secret generic gemini-secrets \
-   --from-literal=api-key=<YOUR_GEMINI_API_KEY> \
+kubectl create secret generic bankapp-ai-secrets \
+   --from-literal=gemini-api-key=<YOUR_GEMINI_API_KEY> \
    -n bankapp-prod
 ```
 
@@ -286,7 +286,8 @@ gateway:
 
 > **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
 >
-> **Important**: `gemini.apiKeySecretName` and `gemini.apiKeySecretKey` in `charts/bankapp/values.yaml` must match the Kubernetes secret created above.
+> **Important**: The deployment reads `GEMINI_API_KEY` from secret `bankapp-ai-secrets` and key `gemini-api-key`.
+> If you change these names, update `charts/bankapp/templates/deployment.yaml` accordingly.
 
 > **Important**: Replace any placeholder/default values in `charts/bankapp/values.yaml` (especially `gateway.host` and `gateway.tls.certManager.email`) with your own environment values before syncing with ArgoCD.
 
@@ -375,10 +376,16 @@ If the reason shows `gateway api is not enabled`, re-run the cert-manager patch 
 
 #### Step 7 — Trigger the GitOps Pipeline
 
-Push code to `main`. GitHub Actions will:
+Push code to a branch that triggers the pipeline (currently `main`, `aws`, or `local`). GitHub Actions will:
 1. Run 8 security gates.
 2. Gate 8 commits the new tag to `values.yaml`.
 3. ArgoCD auto-syncs the new image to the Kind cluster.
+
+#### AI Assistant Behavior (Current)
+
+- For account-specific intents like balance and transaction history, the backend can return deterministic answers directly from the database for reliability and speed.
+- For open-ended prompts (for example: financial concepts), responses are generated through Gemini.
+- Fast responses are therefore expected for balance/transaction questions and do not always indicate an external AI call.
 
 ---
 
