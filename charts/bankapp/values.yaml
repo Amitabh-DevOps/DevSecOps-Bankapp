@@ -6,7 +6,7 @@ replicaCount: 1
 image:
   repository: "amitabhdevops/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent
-  tag: "9310e2662d471de5b53dca832cc0bd03e54c9e39"
+  tag: "3196803cd849fd1538f8594c76aeb710f7082e3a"
 
 service:
   type: ClusterIP
