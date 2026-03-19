@@ -25,6 +25,12 @@ ollama:
 gateway:
   name: "bankapp-gateway"
   className: "envoy" # Envoy Gateway Controller
+  envoyProxy:
+    name: "bankapp-proxy-config"
+    serviceType: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
 
 nginx:
   enabled: true

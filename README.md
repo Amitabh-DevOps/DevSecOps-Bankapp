@@ -269,7 +269,7 @@ Ensure your EC2 Security Group allows traffic on port **30080**.
 
 > **Note**: In a Kind cluster, we use **NodePort** to expose the Gateway. Our `envoyproxy.yaml` manifest is configured to use port **30080** for HTTP traffic, matching the port mapping in our `kind-setup.sh`.
 
-> **ArgoCD Manual Apply**: Since Kind uses NodePorts, we link the Gateway to a specific `EnvoyProxy` configuration. To ensure ArgoCD remains "Synced", the `ignoreDifferences` in `gitops/argocd-app.yaml` are essential.
+> **Networking Update**: This project uses **Gateway API + Envoy Gateway** (not Kubernetes Ingress). Ingress is intentionally not used here, and all traffic exposure is handled declaratively via `Gateway`, `HTTPRoute`, and `EnvoyProxy` manifests in the Helm chart.
 
 #### Step 3 — Install ArgoCD
 
