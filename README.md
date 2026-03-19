@@ -188,11 +188,11 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
        curl http://localhost:11434/api/tags
       ```
 
-   - `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
+      > `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
     
    - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. 
    
-   Verify with:
+      Verify with:
 
       ```bash
       ip addr show docker0 | grep inet
@@ -328,31 +328,19 @@ ArgoCD will sync `charts/bankapp` and deploy all resources.
 
 #### Step 6 — Verify Access (Gateway API & nip.io)
  
-Once the application is synced by ArgoCD, the Gateway resource will trigger the creation of the Envoy data-plane service. You must patch this service to **NodePort** to enable access from outside the Kind cluster.
+Once the application is synced by ArgoCD, the Gateway resource will automatically trigger the creation of the Envoy data-plane service. Thanks to our declarative configuration, this service is created as a **NodePort** with the correct mappings (30080/30443) automatically.
  
-Run this command **AFTER** the BankApp Gateway is deployed/synced:
+Access your app at:
+- **HTTP**: `http://<YOUR_PUBLIC_IP>.nip.io`
+- **HTTPS**: `https://<YOUR_PUBLIC_IP>.nip.io` (Requires Phase 3 Step 2 for SSL)
  
+**Verification commands**:
 ```bash
-kubectl patch svc $(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/own-gateway-name=bankapp-gateway -o jsonpath='{.items[0].metadata.name}') \
-  -n envoy-gateway-system --type='merge' \
-  -p '{"spec": {"type": "NodePort", "ports": [{"name": "http", "port": 80, "targetPort": 10080, "nodePort": 30080}, {"name": "https", "port": 443, "targetPort": 10443, "nodePort": 30443}]}}'
-```
-
-```bash
-kubectl get svc -n bankapp-prod
-# or
 kubectl get gateway bankapp-gateway -n bankapp-prod
+kubectl get svc -n envoy-gateway-system
 ```
-
-```bash
-kubectl patch svc bankapp-gateway -n bankapp-prod \
-  -p '{"spec": {"type": "NodePort", "ports": [{"port": 80, "targetPort": 80, "nodePort": 30080}, {"port": 443, "targetPort": 443, "nodePort": 30443}]}}'
-```
-
-Since we are using **nip.io**, you do not need to configure manual DNS. Access your app at:
-`http://<YOUR_PUBLIC_IP>.nip.io`
-
-> **Note**: For Let's Encrypt to verify your domain and enable HTTPS, ensure your EC2 Security Group allows traffic on ports **80** and **443**.
+ 
+> **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
 #### Step 7 — Trigger the GitOps Pipeline
 
@@ -414,8 +402,9 @@ charts/bankapp/
     ├── _helpers.tpl        # Shared template helpers
     ├── certificate.yaml    # cert-manager Certificate & Issuer
     ├── deployment.yaml     # BankApp Deployment (Docker Hub image, health probes)
+    ├── envoyproxy.yaml     # Declarative NodePort configuration for Kind
     ├── gateway.yaml        # Gateway API — Gateway resource (port 443 + TLS)
-    ├── gatewayclass.yaml   # Envoy Gateway Class definition
+    ├── gatewayclass.yaml   # Envoy Gateway Class (linked to EnvoyProxy)
     ├── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
     ├── nginx.yaml          # Nginx Demo Deployment + Service (conditional)
