@@ -137,7 +137,7 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    - Install Kind:
    
       ```bash
-      curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 
+      curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64 
 
       chmod +x ./kind
 
