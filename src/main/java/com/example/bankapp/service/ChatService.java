@@ -3,8 +3,11 @@ package com.example.bankapp.service;
 import com.example.bankapp.model.Account;
 import com.example.bankapp.model.Transaction;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
 
 import java.util.List;
 import java.util.Map;
@@ -18,11 +21,18 @@ public class ChatService {
     @Value("${ollama.model}")
     private String model;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Value("${ollama.timeout.connect-ms:3000}")
+    private int connectTimeoutMs;
+
+    @Value("${ollama.timeout.read-ms:12000}")
+    private int readTimeoutMs;
+
+    private final RestTemplateBuilder restTemplateBuilder;
     private final AccountService accountService;
 
-    public ChatService(AccountService accountService) {
+    public ChatService(AccountService accountService, RestTemplateBuilder restTemplateBuilder) {
         this.accountService = accountService;
+        this.restTemplateBuilder = restTemplateBuilder;
     }
 
     public String chat(Account account, String userMessage) {
@@ -39,6 +49,11 @@ public class ChatService {
         );
 
         try {
+            RestTemplate restTemplate = restTemplateBuilder
+                .setConnectTimeout(Duration.ofMillis(connectTimeoutMs))
+                .setReadTimeout(Duration.ofMillis(readTimeoutMs))
+                .build();
+
             Map<String, Object> response = restTemplate.postForObject(
                 ollamaUrl + "/api/chat", request, Map.class
             );
