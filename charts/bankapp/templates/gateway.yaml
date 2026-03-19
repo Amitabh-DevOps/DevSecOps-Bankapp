@@ -1,27 +1,32 @@
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
 metadata:
-  name: {{ .Values.gateway.name }}
-  annotations:
-    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  name: bankapp-proxy-config
+  namespace: {{ .Release.Namespace }}
 spec:
-  gatewayClassName: {{ .Values.gateway.className }}
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-      allowedRoutes:
-        namespaces:
-          from: Same
-    - name: https
-      protocol: HTTPS
-      port: 443
-      hostname: {{ .Values.domain | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: bankapp-tls-secret
-            kind: Secret
-      allowedRoutes:
-        namespaces:
-          from: Same
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
+  infraPatch:
+    type: JSONPatch
+    jsonPatches:
+      - group: ""
+        version: v1
+        kind: Service
+        name: envoy
+        patchType: JSONPatch
+        patches:
+          - op: replace
+            path: /spec/ports/0/nodePort
+            value: 30080
+          - op: replace
+            path: /spec/ports/1/nodePort
+            value: 30443
+          - op: replace
+            path: /spec/ports/0/port
+            value: 80
+          - op: replace
+            path: /spec/ports/1/port
+            value: 443
