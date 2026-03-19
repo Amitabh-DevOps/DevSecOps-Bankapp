@@ -16,15 +16,3 @@ spec:
       allowedRoutes:
         namespaces:
           from: Same
-    - name: https
-      protocol: HTTPS
-      port: 443
-      hostname: {{ .Values.domain | quote }}
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - name: bankapp-tls-secret
-            kind: Secret
-      allowedRoutes:
-        namespaces:
-          from: Same
