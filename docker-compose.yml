@@ -36,6 +36,7 @@ services:
       MYSQL_PASSWORD: Test@123
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3-flash-preview}
+      GEMINI_MAX_OUTPUT_TOKENS: ${GEMINI_MAX_OUTPUT_TOKENS:-512}
     depends_on:
       mysql:
         condition: service_healthy

@@ -25,6 +25,7 @@ ai:
 
 gemini:
   model: "gemini-3-flash-preview"
+  maxOutputTokens: 512
   apiUrl: "https://generativelanguage.googleapis.com/v1beta/models"
 
 gateway:

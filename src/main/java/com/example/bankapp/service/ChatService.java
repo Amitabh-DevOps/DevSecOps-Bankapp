@@ -31,6 +31,9 @@ public class ChatService {
     @Value("${ai.timeout.read-ms:30000}")
     private int readTimeoutMs;
 
+    @Value("${gemini.max-output-tokens:512}")
+    private int geminiMaxOutputTokens;
+
     private final RestTemplateBuilder restTemplateBuilder;
     private final AccountService accountService;
 
@@ -74,7 +77,7 @@ public class ChatService {
             ),
             "generationConfig", Map.of(
                 "temperature", 0.2,
-                "maxOutputTokens", 200
+                "maxOutputTokens", geminiMaxOutputTokens
             )
         );
 
@@ -113,7 +116,8 @@ public class ChatService {
     private String buildContext(Account account, List<Transaction> transactions) {
         StringBuilder sb = new StringBuilder();
         sb.append("You are a helpful banking assistant for BankApp. ");
-        sb.append("Keep answers short and friendly (2-3 sentences max). ");
+        sb.append("Keep answers friendly and concise. ");
+        sb.append("If the user asks for transactions, list them clearly with key details. ");
         sb.append("\n\nCustomer details:");
         sb.append("\n- Username: ").append(account.getUsername());
         sb.append("\n- Balance: $").append(account.getBalance());

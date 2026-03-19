@@ -48,6 +48,8 @@ spec:
               value: {{ .Values.ai.timeoutReadMs | quote }}
             - name: GEMINI_MODEL
               value: {{ .Values.gemini.model | quote }}
+            - name: GEMINI_MAX_OUTPUT_TOKENS
+              value: {{ .Values.gemini.maxOutputTokens | quote }}
             - name: GEMINI_API_URL
               value: {{ .Values.gemini.apiUrl | quote }}
             - name: GEMINI_API_KEY
