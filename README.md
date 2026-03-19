@@ -144,37 +144,59 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
    - Install Kubectl
 
-     ```bash
-     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-     sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-     kubectl version --client
-     ```
-     
-   - Run the automated setup script:
-
-     ```bash
-     chmod +x scripts/kind-setup.sh
-     ./scripts/kind-setup.sh
-     ```
-
-   - This script creates a cluster with port mappings (80/443) and installs Envoy Gateway.
-
-   - Run Ollama locally:
+      ```bash
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl version --client
+      ```
+      
+   - Create Kind Cluster:
+  
+      ```bash
+       chmod +x scripts/kind-setup.sh
+       ./scripts/kind-setup.sh
+      ```
+  
+   - **Install Gateway API & Envoy Gateway**: (Crucial for Networking)
+  
+      ```bash
+       # 1. Install Gateway API CRDs
+       kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+  
+       # 2. Install Envoy Gateway via Helm
+       helm install eg oci://docker.io/envoyproxy/gateway-helm \
+         --version v1.7.1 \
+         -n envoy-gateway-system \
+         --create-namespace \
+         --set service.type=LoadBalancer
+      ```
+  
+   - Wait for Envoy Gateway to be ready:
    
       ```bash
-      docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
-
-      docker exec ollama ollama pull tinyllama
-      
-      # Test Ollama API access from the host (should return model info) 
-      curl http://localhost:11434/api/tags
+       kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
       ```
+
+   - Run Ollama locally:
+    
+      ```bash
+       docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+
+       docker exec ollama ollama pull tinyllama
+       
+       # Test Ollama API access from the host (should return model info) 
+       curl http://localhost:11434/api/tags
+      ```
+
    - `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
+    
+   - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. 
    
-   - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. Verify with:
-     ```bash
-     ip addr show docker0 | grep inet
-     ```
+   Verify with:
+
+      ```bash
+      ip addr show docker0 | grep inet
+      ```
 
 ---
 
@@ -292,9 +314,9 @@ kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.pas
 Expose ArgoCD UI (if not externally exposed):
 
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8081:443
+kubectl port-forward svc/argocd-server -n argocd 8081:80 --address 0.0.0.0 &
 ```
-Login via `https://localhost:8081` with user `admin`.
+Login via `http://<PUBLIC_IP>:8081` with user `admin`.
 
 #### Step 5 — Deploy via ArgoCD (Apply Manifest)
 
@@ -305,8 +327,27 @@ kubectl apply -f gitops/argocd-app.yaml
 ArgoCD will sync `charts/bankapp` and deploy all resources.
 
 #### Step 6 — Verify Access (Gateway API & nip.io)
+ 
+Once the application is synced by ArgoCD, the Gateway resource will trigger the creation of the Envoy data-plane service. You must patch this service to **NodePort** to enable access from outside the Kind cluster.
+ 
+Run this command **AFTER** the BankApp Gateway is deployed/synced:
+ 
+```bash
+kubectl patch svc $(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/own-gateway-name=bankapp-gateway -o jsonpath='{.items[0].metadata.name}') \
+  -n envoy-gateway-system --type='merge' \
+  -p '{"spec": {"type": "NodePort", "ports": [{"name": "http", "port": 80, "targetPort": 10080, "nodePort": 30080}, {"name": "https", "port": 443, "targetPort": 10443, "nodePort": 30443}]}}'
+```
 
-The `kind-setup.sh` script attempts to patch the Envoy Gateway service to **NodePort** (mapping 30080 -> 80 and 30443 -> 443). If the Gateway service is not created yet, deploy/sync the app first, then rerun the patch command shown by the script.
+```bash
+kubectl get svc -n bankapp-prod
+# or
+kubectl get gateway bankapp-gateway -n bankapp-prod
+```
+
+```bash
+kubectl patch svc bankapp-gateway -n bankapp-prod \
+  -p '{"spec": {"type": "NodePort", "ports": [{"port": 80, "targetPort": 80, "nodePort": 30080}, {"port": 443, "targetPort": 443, "nodePort": 30443}]}}'
+```
 
 Since we are using **nip.io**, you do not need to configure manual DNS. Access your app at:
 `http://<YOUR_PUBLIC_IP>.nip.io`
