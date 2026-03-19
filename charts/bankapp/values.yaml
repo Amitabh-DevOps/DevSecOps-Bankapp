@@ -25,12 +25,20 @@ ollama:
 gateway:
   name: "bankapp-gateway"
   className: "envoy" # Envoy Gateway Controller
+  host: "1.2.3.4.nip.io"
   envoyProxy:
     name: "bankapp-proxy-config"
     serviceType: NodePort
     nodePorts:
       http: 30080
       https: 30443
+  tls:
+    enabled: true
+    secretName: "bankapp-tls"
+    certManager:
+      enabled: true
+      issuerName: "letsencrypt-prod"
+      email: "amitabhdevops2004@gmail.com"
 
 nginx:
   enabled: true

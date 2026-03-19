@@ -7,8 +7,8 @@ A high-performance, cloud-native financial platform built with Spring Boot 3 and
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-orange.svg)](.github/workflows/devsecops-main.yml)
-[![Kind](https://img.shields.io/badge/Deploy-Kind-yellow.svg)](#phase-3-cloud-native-deployment-gitops--tls)
-[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-red.svg)](#phase-3-cloud-native-deployment-gitops--tls)
+[![Kind](https://img.shields.io/badge/Deploy-Kind-yellow.svg)](#phase-3-cloud-native-deployment-gitops--gateway-api)
+[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-red.svg)](#phase-3-cloud-native-deployment-gitops--gateway-api)
 
 </div>
 
@@ -138,7 +138,9 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    
       ```bash
       curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.22.0/kind-linux-amd64 
+
       chmod +x ./kind
+
       sudo mv ./kind /usr/local/bin/kind
       ```
 
@@ -146,7 +148,9 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
       ```bash
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      
       kubectl version --client
       ```
       
@@ -265,11 +269,25 @@ kubectl create secret generic bankapp-db-secrets \
 
 #### Step 2 — Verify Kind Networking
 
-Ensure your EC2 Security Group allows traffic on port **30080**.
+Ensure your EC2 Security Group allows traffic on ports **80** and **443** (host ports mapped by Kind).
 
-> **Note**: In a Kind cluster, we use **NodePort** to expose the Gateway. Our `envoyproxy.yaml` manifest is configured to use port **30080** for HTTP traffic, matching the port mapping in our `kind-setup.sh`.
+> **Note**: In a Kind cluster, Envoy is exposed through NodePorts **30080/30443**, and `kind-setup.sh` maps host ports **80/443** to those NodePorts.
 
 > **Networking Update**: This project uses **Gateway API + Envoy Gateway** (not Kubernetes Ingress). Ingress is intentionally not used here, and all traffic exposure is handled declaratively via `Gateway`, `HTTPRoute`, and `EnvoyProxy` manifests in the Helm chart.
+
+#### Step 2.1 — Configure nip.io Hostname + TLS Values
+
+Update `charts/bankapp/values.yaml` before ArgoCD sync:
+
+> **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
+
+> **Important**: Replace any placeholder/default values in `charts/bankapp/values.yaml` (especially `gateway.host` and `gateway.tls.certManager.email`) with your own environment values before syncing with ArgoCD.
+
+#### Step 2.2 — Install Cert-Manager (Required for HTTPS)
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+```
 
 #### Step 3 — Install ArgoCD
 
@@ -313,12 +331,14 @@ Once the application is synced by ArgoCD, the Gateway resource will automaticall
  
 Access your app at:
 - **HTTP**: `http://<YOUR_PUBLIC_IP>.nip.io`
-- **HTTPS**: `https://<YOUR_PUBLIC_IP>.nip.io` (Requires Phase 3 Step 2 for SSL)
+- **HTTPS**: `https://<YOUR_PUBLIC_IP>.nip.io`
  
 **Verification commands**:
 ```bash
 kubectl get gateway bankapp-gateway -n bankapp-prod
 kubectl get svc -n envoy-gateway-system
+kubectl get certificate -n bankapp-prod
+kubectl describe certificate bankapp-tls -n bankapp-prod
 ```
  
 > **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
@@ -367,8 +387,9 @@ graph TD
 | HTTP Routes | `kubectl get httproute -n bankapp-prod` |
 
 **Access Points:**
-*   **BankApp**: `http://<YOUR_PUBLIC_IP>:30080/`
-*   **Nginx Demo**: `http://<YOUR_PUBLIC_IP>:30080/nginx`
+*   **BankApp (HTTP)**: `http://<YOUR_PUBLIC_IP>.nip.io/`
+*   **BankApp (HTTPS)**: `https://<YOUR_PUBLIC_IP>.nip.io/`
+*   **Nginx Demo**: `http://<YOUR_PUBLIC_IP>.nip.io/nginx`
 *   **ArgoCD UI**: `http://<YOUR_PUBLIC_IP>:8081` (via `kubectl port-forward`)
 
 ---
@@ -381,11 +402,13 @@ charts/bankapp/
 ├── values.yaml             # All configurable values (image, DB, Nginx)
 └── templates/
     ├── _helpers.tpl        # Shared template helpers
+   ├── certificate.yaml    # cert-manager Certificate for nip.io TLS
     ├── deployment.yaml     # BankApp Deployment (Docker Hub image, health probes)
     ├── envoyproxy.yaml     # Declarative NodePort configuration for Kind
-    ├── gateway.yaml        # Gateway API — Gateway resource (port 80)
+   ├── gateway.yaml        # Gateway API — Gateway resource (ports 80/443)
     ├── gatewayclass.yaml   # Envoy Gateway Class (linked to EnvoyProxy)
     ├── httproute.yaml      # Gateway API — HTTPRoute (path-based routing)
+   ├── issuer.yaml         # cert-manager ACME Issuer (Let's Encrypt)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
     ├── nginx.yaml          # Nginx Demo Deployment + Service
     └── service.yaml        # BankApp ClusterIP Service (port 8080)
