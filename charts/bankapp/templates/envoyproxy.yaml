@@ -5,16 +5,22 @@ metadata:
   namespace: {{ .Release.Namespace }}
 spec:
   provider:
+    type: Kubernetes
     kubernetes:
       envoyService:
-        ports:
-          - name: http
-            nodePort: 30080
-            port: 80
-            protocol: TCP
-          - name: https
-            nodePort: 30443
-            port: 443
-            protocol: TCP
         type: NodePort
-    type: Kubernetes
+  infraPatch:
+    type: JSONPatch
+    jsonPatches:
+      - group: ""
+        version: v1
+        kind: Service
+        name: envoy
+        patchType: JSONPatch
+        patches:
+          - op: add
+            path: /spec/ports/0/nodePort
+            value: 30080
+          - op: add
+            path: /spec/ports/1/nodePort
+            value: 30443
