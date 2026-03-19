@@ -2,13 +2,13 @@
 
 # DevSecOps Banking Application
 
-A high-performance, cloud-native financial platform built with Spring Boot 3 and Java 21. Deployed on **Amazon EKS** with a fully automated **GitOps pipeline** using GitHub Actions, ArgoCD, and Helm — enforcing **8 sequential security gates** before any code reaches production.
+A high-performance, cloud-native financial platform built with Spring Boot 3 and Java 21. Deployed on **Kind (Kubernetes in Docker)** with a fully automated **GitOps pipeline** using GitHub Actions, ArgoCD, and Helm - enforcing **8 sequential security gates** before any code reaches production.
 
 [![Java Version](https://img.shields.io/badge/Java-21-blue.svg)](https://www.oracle.com/java/technologies/javase/jdk21-archive-downloads.html)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.1-brightgreen.svg)](https://spring.io/projects/spring-boot)
 [![GitHub Actions](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-orange.svg)](.github/workflows/devsecops-main.yml)
-[![AWS EKS](https://img.shields.io/badge/Deploy-AWS%20EKS-yellow.svg)](#phase-4-cloud-native-deployment-eks--gitops)
-[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-red.svg)](#phase-4-cloud-native-deployment-eks--gitops)
+[![Kind](https://img.shields.io/badge/Deploy-Kind-yellow.svg)](#phase-3-cloud-native-deployment-gitops--gateway-api)
+[![ArgoCD](https://img.shields.io/badge/GitOps-ArgoCD-red.svg)](#phase-3-cloud-native-deployment-gitops--gateway-api)
 
 </div>
 
@@ -18,46 +18,9 @@ A high-performance, cloud-native financial platform built with Spring Boot 3 and
 
 ## Technical Architecture
 
-The application is deployed on a modern, cloud-native **Amazon EKS** cluster. GitHub Actions handles all CI/CD security gates, then updates Helm manifests in the repo, which **ArgoCD** automatically synchronizes to the cluster.
+The application is deployed on a modern, cloud-native **Kind** cluster. GitHub Actions handles all CI/CD security gates, then updates Helm manifests in the repo, which **ArgoCD** automatically synchronizes to the cluster.
 
-```mermaid
-graph TD
-    subgraph "CI/CD Control Plane"
-        DEV[Developer Push]
-        GH[GitHub Actions]
-        REPO[(GitHub Repo\nHelm Manifests)]
-    end
-
-    subgraph "AWS Cloud"
-        ECR[Amazon ECR\nContainer Registry]
-        OIDC[IAM OIDC Provider]
-        OLLAMA[Ollama EC2\nAI Engine :11434]
-
-        subgraph "EKS Cluster — bankapp-prod-cluster"
-            ARGO[ArgoCD]
-            GW[Gateway API\nbankapp-gateway]
-            APP[BankApp Pods\nPort 8080]
-            NGX[Nginx Demo Pods\nPort 80]
-            DB[(MySQL 8.0 Pod\nPVC: 10Gi)]
-        end
-    end
-
-    DEV -->|git push| GH
-    GH -->|OIDC Auth| OIDC
-    GH -->|Push image| ECR
-    GH -->|Update values.yaml| REPO
-
-    ARGO -->|Watch & Sync| REPO
-    ARGO -->|Deploy/Update| APP
-
-    USER[User Browser] -->|bankapp.amitabh.cloud| GW
-    GW -->|Route /| APP
-    GW -->|Route /nginx| NGX
-
-    APP -->|Pull Image| ECR
-    APP -->|JDBC| DB
-    APP -->|REST :11434| OLLAMA
-```
+![architecture](screenshots/architecture.png)
 
 ---
 
@@ -73,10 +36,10 @@ The pipeline enforces **8 sequential security gates** across three modular workf
 | 4 | `sca` | `ci.yml` | OWASP Dependency Check | **Strict** — Fails if any CVE with CVSS ≥ 7.0 found in Maven deps |
 | 5 | `build` | `build.yml` | Maven | Compiles, packages JAR, uploads as build artifact |
 | 6 | `image_scan` | `build.yml` | Trivy | **Strict** — Fails on CRITICAL or HIGH CVE in the Docker image |
-| 7 | `push_to_ecr` | `build.yml` | Amazon ECR (OIDC) | Pushes verified image to ECR using keyless OIDC auth |
+| 7 | `push_to_dockerhub` | `build.yml` | Docker Hub (Secrets) | Pushes verified image to Docker Hub using secure secrets |
 | 8 | `gitops-update` | `cd.yml` | Helm / ArgoCD | Updates `charts/bankapp/values.yaml` with new image tag → triggers ArgoCD auto-sync |
 
-> **ArgoCD** is configured with `automated.selfHeal: true` — once `values.yaml` is updated, ArgoCD automatically pulls and deploys the new image to the EKS cluster without any manual intervention.
+> **ArgoCD** is configured with `automated.selfHeal: true` — once `values.yaml` is updated, ArgoCD automatically pulls and deploys the new image to the Kind cluster without any manual intervention.
 
 All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in each GitHub Actions run.
 
@@ -88,176 +51,135 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 | :--- | :--- |
 | **Backend** | Java 21, Spring Boot 3.4.1, Spring Security, Spring Data JPA |
 | **Frontend** | Thymeleaf, Bootstrap |
-| **AI Integration** | Ollama (TinyLlama), REST |
+| **AI Integration** | Google Gemini API (`gemini-3-flash-preview`) |
 | **Database** | MySQL 8.0 (Kubernetes Pod) |
 | **Container** | Docker (eclipse-temurin:21-jre-alpine, non-root user) |
-| **Kubernetes** | Amazon EKS (cluster: `bankapp-prod-cluster`, nodegroup: `bankapp-ng`, t3.medium) |
+| **Kubernetes** | Kind (Kubernetes in Docker) |
 | **GitOps** | ArgoCD, Helm 3 |
 | **Networking** | Kubernetes Gateway API (GatewayClass: `envoy`) |
-| **CI/CD** | GitHub Actions (OIDC, workflow_call pattern) |
+| **CI/CD** | GitHub Actions (Standard Workflow) |
 | **Security Tools** | Gitleaks, Checkstyle, Semgrep, OWASP Dependency Check, Trivy |
-| **Registry** | Amazon ECR |
-| **Secrets** | Kubernetes Secrets |
+| **Registry** | Docker Hub |
+| **Secrets** | Kubernetes Secrets, GitHub Actions Secrets |
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: AWS Infrastructure Initialization
+### Phase 1: Local Infrastructure Initialization (Kind)
 
-> ### EC2 Instances Required
-> | # | EC2 | Purpose | Who creates it |
+> ### Environment Requirements
+> | # | Component | Purpose | How to create it |
 > | :---: | :--- | :--- | :--- |
-> | 1 | **Management EC2** | Clone repo, install tools (`eksctl`, `kubectl`, `helm`), create EKS cluster, deploy ArgoCD | You manually |
-> | 2 | **Ollama EC2** | Runs Ollama AI engine (TinyLlama, port 11434) | You manually |
-> | Auto | **EKS Worker Nodes** | Run BankApp, MySQL, Nginx pods | `eksctl` auto-provisions |
+> | 1 | **EC2 (Ubuntu)**| Host Instance | Launch `t3.medium` (Ubuntu 24.04) |
+> | 2 | **Docker** | Container Runtime | Install via `apt` |
+> | 3 | **Kind** | Local Kubernetes Cluster | Install via binary |
+> | 4 | **Gemini API Key** | Enables AI assistant responses | Store in Kubernetes Secret |
+> | 5 | **kubectl/Helm** | Cluster management | Install binaries |
 
-1. **Container Registry (ECR)**:
+#### Step 0 — EC2 Launch & Docker Setup
 
-   - Establish a private ECR repository named `devsecops-bankapp`.
+1. **Launch Instance**: 
+   - AMI: **Ubuntu Server 24.04 LTS**.
+   - Type: **t3.medium** (Min 2 vCPU, 4GB RAM).
+   - Security Group: Allow **22 (SSH)**, **80 (HTTP)**, **443 (HTTPS)**, and **8081 (ArgoCD)**.
 
-      ![ECR](screenshots/2.png)
+2. **Update & Install Docker & Helm**:
+   ```bash
+   sudo apt update && sudo apt upgrade -y
+   
+   # Install Docker
+   sudo apt install docker.io -y
+   sudo usermod -aG docker $USER && newgrp docker
 
-2. **Management EC2** *(clone repo & run all kubectl/eksctl/helm commands from here)*:
+   # Install Helm
+   curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+   ```
 
-   - Deploy an **Ubuntu 22.04** EC2 instance (recommended: `t3.medium` or larger).
-   - Configure Security Group to allow **Port 22** (SSH).
-   - Attach an IAM Instance Profile with the following managed policies:
-     - `AmazonEC2ContainerRegistryPowerUser` (ECR image push)
-     - `AmazonEC2FullAccess` (VPC, subnets, security groups for eksctl)
-     - `IAMFullAccess` (eksctl creates IAM roles for node groups)
-     - `AWSCloudFormationFullAccess` (eksctl uses CloudFormation stacks internally)
+#### Step 1 — Infrastructure Initialization (Kind)
+   - Install Kind:
+   
+      ```bash
+      curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64 
 
-   - Then add an **Inline Policy** named `EKSFullAccess`:
-     ```json
-     {
-         "Version": "2012-10-17",
-         "Statement": [
-             {
-                 "Effect": "Allow",
-                 "Action": "eks:*",
-                 "Resource": "*"
-             }
-         ]
-     }
-     ```
+      chmod +x ./kind
 
-     > **Why not `AmazonEKSClusterPolicy`?** That policy is meant to be attached to the EKS cluster's own service role — it grants EKS permissions to call EC2/ELB on your behalf. It does NOT grant your EC2 permission to call EKS APIs. The inline `eks:*` policy is what actually allows the EC2 to create and manage clusters.
+      sudo mv ./kind /usr/local/bin/kind
+      ```
 
-     > **Tip**: For simplest setup, attaching **`AdministratorAccess`** covers everything in one policy.
-
-   - Connect via SSH and run(manually) or bootstrap using User Data:
+   - Install Kubectl
 
       ```bash
-      #!/bin/bash
-      sudo apt update
-      sudo apt install -y git curl unzip jq
-      sudo snap install aws-cli --classic
-
-      # No 'aws configure' needed — IAM Instance Profile provides credentials automatically
-
-      # Install kubectl
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
-      # Install eksctl
-      curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-      sudo mv /tmp/eksctl /usr/local/bin
-
-      # Install Helm
-      curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      
+      kubectl version --client
       ```
+      
+   - Create Kind Cluster:
+  
+      ```bash
+      chmod +x scripts/kind-setup.sh
+      
+      ./scripts/kind-setup.sh
+      ```
+  
+   - **Install Gateway API & Envoy Gateway**: (Crucial for Networking)
+  
+      ```bash
+      # 1. Install Gateway API CRDs
+      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+  
+      # 2. Install Envoy Gateway via Helm
+      helm install eg oci://docker.io/envoyproxy/gateway-helm \
+         --version v1.7.1 \
+         -n envoy-gateway-system \
+         --create-namespace \
+         --set service.type=NodePort
+      ```
+  
+      - Wait for Envoy Gateway to be ready:
+   
+         ```bash
+         kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
+         ```
 
-   - Verify tools:
+   - No local AI runtime is required. This project uses Gemini over HTTPS.
+    
+   - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. 
+   
+      Verify with:
 
       ```bash
-      kubectl version --client && eksctl version && helm version
+      ip addr show docker0 | grep inet
       ```
-
-   - Verify IAM Instance profile working:
-
-      ```bash
-      aws sts get-caller-identity
-      ```
-
-3. **Ollama EC2** *(dedicated AI engine)*:
-
-   - Deploy a Ubuntu EC2 instance (t3.medium) in the **Default VPC**.
-
-   - Automate initialization using the [ollama-setup.sh](scripts/ollama-setup.sh) script via EC2 User Data.
-
-      ![user-data](screenshots/9.png)
-
-   - Verify the AI engine is responsive:
-
-     ```bash
-     ollama list
-     ```
-
-      ![ollama-list](screenshots/21.png)
 
 ---
 
-### Phase 2: Security and Identity Configuration
+### Phase 2: Security and Pipeline Configuration
 
-The pipeline uses **OpenID Connect (OIDC)** for keyless authentication between GitHub Actions and AWS — no long-lived AWS keys stored anywhere.
-
-1. **IAM Identity Provider**:
-   - Provider URL: `https://token.actions.githubusercontent.com`
-   - Audience: `sts.amazonaws.com`
-
-      ![identity-provider](screenshots/10.png)
-
-2. **Deployment Role** (`GitHubActionsRole`):
-   - Click on created `Identity provider` → Assign Role.
-   - Enter following details:
-      - `Identity provider`: Select created one.
-      - `Audience`: Select one.
-      - `GitHub organization`: Your GitHub username or org.
-      - `GitHub repository`: `DevSecOps-Bankapp`
-      - `GitHub branch`: `main`
-
-      ![role](screenshots/11.png)
-
-   - Assign `AmazonEC2ContainerRegistryPowerUser` permissions.
-
-      ![iam permission](screenshots/12.png)
-
-   - Click on `Next`, Enter name of role and click on `Create role`.
-
-      ![iam role](screenshots/13.png)
-
----
-
-### Phase 3: Secrets and Pipeline Configuration
-
-#### 1. Kubernetes Secret (DB Password)
-The Helm chart reads the MySQL password from a Kubernetes Secret named `bankapp-db-secrets`.
-
-> This is created in **Phase 4 Step 2** after the EKS cluster and namespace exist. All other DB values (`host`, `port`, `name`, `user`) are set in `charts/bankapp/values.yaml`. **No AWS Secrets Manager needed.**
+#### 1. Docker Hub Repository
+- Create a repository named `devsecops-bankapp` on [hub.docker.com](https://hub.docker.com/).
 
 #### 2. GitHub Repository Secrets
 Configure the following Action Secrets in **Settings → Secrets and variables → Actions**:
 
 | Secret Name | Description |
 | :--- | :--- |
-| `AWS_ROLE_ARN` | ARN of the `GitHubActionsRole` (for OIDC) |
-| `AWS_REGION` | AWS region (e.g., `us-east-1`) |
-| `ECR_REPOSITORY` | ECR repo name (e.g., `devsecops-bankapp`) — used in `build.yml` for image push |
-| `NVD_API_KEY` | Free API key from [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key) — speeds up OWASP SCA from 30+ min → ~8 min |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username |
+| `DOCKERHUB_TOKEN` | Your Docker Hub Personal Access Token (PAT) |
+| `DOCKERHUB_REPO` | Your full repo name (e.g., `username/devsecops-bankapp`) |
+| `NVD_API_KEY` | Free API key from [nvd.nist.gov](https://nvd.nist.gov/developers/request-an-api-key) |
 
-> **Note**: `GITHUB_TOKEN` is used automatically by `cd.yml` to commit the updated `values.yaml` — no extra PAT or `GITOPS_TOKEN` secret needed. Ensure **Settings → Actions → General → Workflow permissions** is set to **"Read and write permissions"**.
+> **Note**: `GITHUB_TOKEN` is used automatically by `cd.yml` to commit the updated `values.yaml` — ensure **Settings → Actions → General → Workflow permissions** is set to **"Read and write permissions"**.
 
-> **Note**: The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 requests/30s, reducing the OWASP Dependency Check scan time from 30+ minutes to under 8 minutes. Without it the SCA job will time out.
-
-
-![github-secret](screenshots/15.png)
-
-#### Obtaining the NVD API Key
+#### Obtaining the NVD API Key (Optional but Recommended)
+The `NVD_API_KEY` raises the NVD API rate limit from ~5 requests/30s to 50 requests/30s, reducing the OWASP Dependency Check scan time from 30+ minutes to under 8 minutes. Without it the SCA job will time out.
 
 **Step 1: Request the API Key**
 - Go to [https://nvd.nist.gov/developers/request-an-api-key](https://nvd.nist.gov/developers/request-an-api-key).
-- Enter your `Organzation name`, `email address`, and select `organization type`.
+- Enter your `Organization name`, `email address`, and select `organization type`.
 - Accept **Terms of Use** and Click **Submit**.
 
    ![request](screenshots/22.png)
@@ -280,56 +202,14 @@ Configure the following Action Secrets in **Settings → Secrets and variables �
    ![api-key](screenshots/24.png)
 
 **Step 4**: Add as GitHub Secret named `NVD_API_KEY`.
+   
+   ![github-secret](screenshots/15.png)
 
 ---
 
-### Phase 4: Cloud-Native Deployment (EKS & GitOps + TLS)
+### Phase 3: Cloud-Native Deployment (GitOps + Gateway API)
 
-> **Prerequisites**: All tools (`kubectl`, `eksctl`, `helm`) were already installed on the Management EC2 in Phase 1 via User Data. SSH into it, clone the repo, and continue:
-
-> ```bash
-> git clone https://github.com/Amitabh-DevOps/DevSecOps-Bankapp.git
-> cd DevSecOps-Bankapp
-> ```
-
-#### Step 1 — Create EKS Cluster
-
-Run the automated setup script. It will create the cluster inside your **Default VPC**, ensuring it shares the same network space as Ollama.
-
-```bash
-chmod +x scripts/eks-setup.sh
-./scripts/eks-setup.sh
-```
-
-> **Note**: This setup takes ~15-20 minutes.
-
-Verify nodes are ready:
-
-```bash
-kubectl get nodes
-```
-
-#### Step 2 — Configure Ollama Networking
-
-1. **Update Security Group**: Since EKS and Ollama are now in the **Same VPC (Default)**, find the **Ollama EC2's security group** and add an inbound rule: 
-   - **Port**: `11434`
-   - **Protocol**: `TCP`
-   - **Source**: **`eks-cluster-sg-bankapp-prod-cluster-...`** (The SG applied to your EKS nodes).
-
-2. **Update Helm Values**: Ensure the BankApp knows where to find Ollama.
-   - Open `charts/bankapp/values.yaml`.
-   - Update `ollama.url` with the **Private IP** of your Ollama EC2 (e.g., `http://172.31.x.x:11434`).
-
-3. **Push to GitHub**: For ArgoCD to pick up the change, you must push it:
-   ```bash
-   git add .
-   git commit -m "fix: update ollama private ip"
-   git push origin main
-   ```
-
-   > **Note**: This allows the BankApp pods to talk to Ollama using its **Private IP** without any restrictions.
-
-#### Step 3 — Create Namespace & DB Secret
+#### Step 1 — Create Namespace, DB Secret, and Gemini Secret
 
 ```bash
 kubectl create namespace bankapp-prod
@@ -337,137 +217,168 @@ kubectl create namespace bankapp-prod
 kubectl create secret generic bankapp-db-secrets \
   --from-literal=password=<YOUR_DB_PASSWORD> \
   -n bankapp-prod
+
+kubectl create secret generic bankapp-ai-secrets \
+   --from-literal=gemini-api-key=<YOUR_GEMINI_API_KEY> \
+   -n bankapp-prod
 ```
 
-#### Step 4 — Install Envoy Gateway
+#### Step 2 — Verify Kind Networking
 
-Envoy Gateway is the industry-standard implementation of the Gateway API. It will automatically provision an AWS Network Load Balancer (NLB) for your cluster.
+Ensure your EC2 Security Group allows traffic on ports **80** and **443** (host ports mapped by Kind).
+
+> **Note**: In a Kind cluster, Envoy is exposed through NodePorts **30080/30443**, and `kind-setup.sh` maps host ports **80/443** to those NodePorts.
+
+> **Networking Update**: This project uses **Gateway API + Envoy Gateway** (not Kubernetes Ingress). Ingress is intentionally not used here, and all traffic exposure is handled declaratively via `Gateway`, `HTTPRoute`, and `EnvoyProxy` manifests in the Helm chart.
+
+#### Step 2.1 — Configure nip.io Hostname + TLS Values
+
+Update `charts/bankapp/values.yaml` before ArgoCD sync:
+
+> **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
+>
+> **Important**: The deployment reads `GEMINI_API_KEY` from secret `bankapp-ai-secrets` and key `gemini-api-key`.
+> If you change these names, update `charts/bankapp/templates/deployment.yaml` accordingly.
+
+> **Important**: Replace any placeholder/default values in `charts/bankapp/values.yaml` (especially `gateway.host` and `gateway.tls.certManager.email`) with your own environment values before syncing with ArgoCD.
+
+#### Step 2.2 — Install Cert-Manager (Required for HTTPS)
 
 ```bash
-# 1. Install standard Gateway API CRDs (required)
-kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
 
-# Install Envoy Gateway via Helm
-helm install eg oci://docker.io/envoyproxy/gateway-helm \
-  --version v1.7.1 \
-  -n envoy-gateway-system \
-  --create-namespace \
-  --set service.type=LoadBalancer \
-  --set service.annotations."service\.beta\.kubernetes\.io/aws-load-balancer-type"=nlb
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager --timeout=5m
 
-# 3. Wait for the control plane to be ready
-kubectl wait -n envoy-gateway-system \
-  deployment/envoy-gateway \
-  --for=condition=Available --timeout=5m
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager-cainjector --timeout=5m
+
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager-webhook --timeout=5m
+
+# Required when using HTTP01 solver with Gateway API
+kubectl -n cert-manager patch deploy cert-manager --type='json' \
+   -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-gateway-api"}]'
+
+kubectl -n cert-manager rollout restart deploy cert-manager
+
+kubectl -n cert-manager rollout status deploy cert-manager
 ```
 
-> **Note**: Envoy Gateway will manage the "Envoy Proxy" pods that handle the actual traffic to your BankApp.
+#### Step 3 — Install ArgoCD
 
-#### Step 5 — Install cert-manager (Let's Encrypt TLS)
-
-Cert-manager manages your TLS certificates. We must enable the **GatewayAPI** feature gate so it can talk to Envoy.
-
-```bash
-# 1. Add Jetstack Helm repo
-helm repo add jetstack https://charts.jetstack.io
-helm repo update
-
-# 2. Install cert-manager
-helm install cert-manager jetstack/cert-manager \
-  --namespace cert-manager \
-  --create-namespace \
-  --version v1.17.1 \
-  --set installCRDs=true \
-  --set "config.enableGatewayAPI=true"
-
-# 3. Wait for readiness
-kubectl wait --for=condition=Available deployment \
-  -l app.kubernetes.io/instance=cert-manager \
-  -n cert-manager --timeout=5m
-
-# 4. Verify
-kubectl get pods -n cert-manager
-kubectl get crds | grep cert-manager
-```
-
-> **Note**: cert-manager will automatically provision and renew the TLS certificate for `bankapp.amitabh.cloud` via Let's Encrypt HTTP01 challenge. The certificate is stored as a Kubernetes Secret (`bankapp-tls-secret`) and referenced by the Gateway.
-
-> Before applying, update `charts/bankapp/templates/certificate.yaml` line `email:` with your real email address for Let's Encrypt expiry notifications.
-
-#### Step 6 — Install ArgoCD
+Install ArgoCD manually after Kind + Envoy setup:
 
 ```bash
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-# Wait for pods to be ready
-kubectl get pods -n argocd
+kubectl apply -n argocd \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+kubectl wait -n argocd --for=condition=Ready pods --all --timeout=5m
 ```
 
-#### Step 7 — Expose & Login to ArgoCD
+#### Step 4 — Login to ArgoCD
+
+Fetch initial admin password and login to ArgoCD UI:
 
 ```bash
-# Expose ArgoCD UI via LoadBalancer
-kubectl patch svc argocd-server -n argocd -p '{
-  "spec": {
-    "type": "LoadBalancer"
-  },
-  "metadata": {
-    "annotations": {
-      "service.beta.kubernetes.io/aws-load-balancer-type": "nlb"
-    }
-  }
-}'
-
-# Get the ArgoCD NLB URL (wait ~2 mins for it to provision)
-kubectl get svc argocd-server -n argocd
-
-# Get initial admin password
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d && echo
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-Open the ArgoCD NLB URL in a browser after NLB is active(check from AWS Load balancer console) → Login with:
-- **Username**: `admin`
-- **Password**: output of the command above
+Expose ArgoCD UI (if not externally exposed):
 
-#### Step 8 — Deploy via ArgoCD (Apply Manifest)
+```bash
+kubectl port-forward svc/argocd-server -n argocd 8081:80 --address 0.0.0.0 &
+```
+Login via `http://<PUBLIC_IP>:8081` with user `admin`.
+
+#### Step 5 — Deploy via ArgoCD (Apply Manifest)
 
 ```bash
 kubectl apply -f gitops/argocd-app.yaml
 ```
 
-ArgoCD will sync `charts/bankapp` from the `main` branch and deploy all resources: Deployments, Services, PVC, Gateway, HTTPRoutes, and cert-manager Certificate.
+ArgoCD will sync `charts/bankapp` and deploy all resources.
 
-Verify in ArgoCD UI that the app appears and starts syncing. Get the Gateway LoadBalancer address for DNS:
-
+#### Step 6 — Verify Access (Gateway API & nip.io)
+ 
+Once the application is synced by ArgoCD, the Gateway resource will automatically trigger the creation of the Envoy data-plane service. Thanks to our declarative configuration, this service is created as a **NodePort** with the correct mappings (30080/30443) automatically.
+ 
+Access your app at:
+- **HTTP**: `http://<YOUR_PUBLIC_IP>.nip.io`
+- **HTTPS**: `https://<YOUR_PUBLIC_IP>.nip.io`
+ 
+**Verification commands**:
 ```bash
-kubectl get svc -n bankapp-prod
-# or
 kubectl get gateway bankapp-gateway -n bankapp-prod
+kubectl get svc -n envoy-gateway-system
+kubectl get certificate -n bankapp-prod
+kubectl describe certificate bankapp-tls -n bankapp-prod
+kubectl get certificaterequest,order,challenge -n bankapp-prod
 ```
 
-#### Step 9 — Configure DNS
+If certificate issuance is stuck, inspect challenge reason:
 
-Once the Gateway/LoadBalancer address is available, go to your DNS provider (`amitabh.cloud`) and create:
+```bash
+kubectl describe challenge -n bankapp-prod
+```
 
-| Type | Name | Value |
-| :--- | :--- | :--- |
-| A / CNAME | `bankapp` | `<Gateway LoadBalancer IP or Hostname>` |
+If the reason shows `gateway api is not enabled`, re-run the cert-manager patch command from Step 2.2 and recreate ACME resources.
+ 
+> **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
-> DNS propagation takes 1-5 minutes. Once done, Let's Encrypt will automatically provision the TLS certificate via HTTP01 challenge.
+#### Step 7 — Trigger the GitOps Pipeline
 
-#### Step 10 — Trigger the GitOps Pipeline
+Push code to `main`. GitHub Actions will:
+1. Run 8 security gates.
+2. Gate 8 commits the new tag to `values.yaml`.
+3. ArgoCD auto-syncs the new image to the Kind cluster.
 
-Push code to the `main` branch. GitHub Actions will:
-1. Run 8 security gates (Gitleaks → Checkstyle → Semgrep → OWASP DC → Build → Trivy → ECR Push → GitOps Update).
-2. Gate 8 commits the new `image.tag` to `charts/bankapp/values.yaml`.
-3. ArgoCD detects the change on `main` and **auto-syncs** the updated image to the EKS cluster.
+#### AI Assistant Behavior (Current)
 
-**Access:**
-- `https://bankapp.amitabh.cloud/` → BankApp (TLS via Let's Encrypt)
-- `https://bankapp.amitabh.cloud/nginx` → Nginx demo
-- HTTP → HTTPS 301 redirect is handled by the Gateway automatically
+- For account-specific intents like balance and transaction history, the backend can return deterministic answers directly from the database for reliability and speed.
+- For open-ended prompts (for example: financial concepts), responses are generated through Gemini.
+- Fast responses are therefore expected for balance/transaction questions and do not always indicate an external AI call.
+
+---
+
+## Technical Overview
+
+```mermaid
+graph TD
+    git[git push] --> ci[CI Workflow]
+    ci --> gate1[Gitleaks]
+    ci --> gate2[Checkstyle]
+    ci --> gate3[Semgrep]
+    ci --> gate4[OWASP DC]
+    
+    gate4 --> build[Build Workflow]
+    build --> gate5[Maven Build]
+    build --> gate6[Trivy Scan]
+    build --> gate7[Docker Hub Push]
+    
+    gate7 --> cd[CD Workflow]
+    cd --> gate8[GitOps Update]
+    
+    gate8 --> kind[Kind Cluster]
+    kind --> argo[ArgoCD Sync]
+```
+
+---
+
+## Verification & Access
+
+| Check | Command |
+| :--- | :--- |
+| Cluster Nodes | `kubectl get nodes` |
+| Application Pods | `kubectl get pods -n bankapp-prod` |
+| ArgoCD Apps | `kubectl get applications -n argocd` |
+| Gateway Status | `kubectl get gateway -n bankapp-prod` |
+| HTTP Routes | `kubectl get httproute -n bankapp-prod` |
+
+**Access Points:**
+*   **BankApp (HTTP)**: `http://<YOUR_PUBLIC_IP>.nip.io/`
+*   **BankApp (HTTPS)**: `https://<YOUR_PUBLIC_IP>.nip.io/`
+*   **Nginx Demo**: `http://<YOUR_PUBLIC_IP>.nip.io/nginx`
+*   **ArgoCD UI**: `http://<YOUR_PUBLIC_IP>:8081` (via `kubectl port-forward`)
 
 ---
 
@@ -476,29 +387,32 @@ Push code to the `main` branch. GitHub Actions will:
 ```
 charts/bankapp/
 ├── Chart.yaml              # Chart metadata (name: bankapp, version: 0.1.0)
-├── values.yaml             # All configurable values (domain, image, DB, Nginx)
+├── values.yaml             # All configurable values (image, DB, Nginx)
 └── templates/
     ├── _helpers.tpl        # Shared template helpers
-    ├── certificate.yaml    # cert-manager Certificate & Issuer
-    ├── deployment.yaml     # BankApp Deployment (ECR image, health probes)
-    ├── gateway.yaml        # Gateway API — Gateway resource (port 443 + TLS)
-    ├── gatewayclass.yaml   # Envoy Gateway Class definition
-    ├── httproute.yaml      # Gateway API — HTTPRoute (domain + path routing)
+   ├── certificate.yaml    # cert-manager Certificate for nip.io TLS
+    ├── deployment.yaml     # BankApp Deployment (Docker Hub image, health probes)
+    ├── envoyproxy.yaml     # Declarative NodePort configuration for Kind
+   ├── gateway.yaml        # Gateway API — Gateway resource (ports 80/443)
+    ├── gatewayclass.yaml   # Envoy Gateway Class (linked to EnvoyProxy)
+    ├── httproute.yaml      # Gateway API — HTTPRoute (path-based routing)
+   ├── issuer.yaml         # cert-manager ACME Issuer (Let's Encrypt)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
-    ├── nginx.yaml          # Nginx Demo Deployment + Service (conditional)
+    ├── nginx.yaml          # Nginx Demo Deployment + Service
     └── service.yaml        # BankApp ClusterIP Service (port 8080)
 ```
 
 **Path Routing:**
 | Path | Backend | Description |
 | :--- | :--- | :--- |
-| `your-domain.com/` | BankApp (port 8080) | Spring Boot Banking Application |
-| `your-domain.com/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
+| `/` | BankApp (port 8080) | Spring Boot Banking Application |
+| `/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
 
 **ArgoCD Application** (`gitops/argocd-app.yaml`):
 - Points to `charts/bankapp` in this repo.
 - Deploys to namespace: `bankapp-prod`.
 - Auto-sync enabled with `prune: true` and `selfHeal: true`.
+- If `Gateway` appears `Healthy` but `OutOfSync`, check `Diff` first. In this project we removed `spec.infrastructure.parametersRef` from `Gateway` to avoid controller-pruned-field drift while keeping `EnvoyProxy` linkage at `GatewayClass` level.
 
 ---
 
@@ -518,35 +432,20 @@ CI Workflow (ci.yml)
 Build Workflow (build.yml)
     ├── Gate 5: Maven Build   ── Compile + package JAR
     ├── Gate 6: Trivy Scan    ── Container image scan
-    └── Gate 7: ECR Push      ── Push image (OIDC auth)
+    └── Gate 7: Docker Hub Push── Push image (Secret auth)
     │
     ▼ (on success)
 CD Workflow (cd.yml)
     └── Gate 8: GitOps Update ── Update values.yaml → commit → push
     │
     ▼ (ArgoCD auto-sync)
-EKS Cluster
+Kind Cluster
     └── ArgoCD syncs new image tag → Rolling update on BankApp pods
 ```
 
 ---
 
-## Operational Verification
-
-| Check | Command |
-| :--- | :--- |
-| Node status | `kubectl get nodes` |
-| Pod status | `kubectl get pods -n bankapp-prod` |
-| ArgoCD sync status | `kubectl get applications -n argocd` |
-| Gateway status | `kubectl get gateway -n bankapp-prod` |
-| Routes | `kubectl get httproute -n bankapp-prod` |
-
-**Access:**
-- **BankApp**: `http://bankapp.yourdomain.com/`
-- **Nginx Demo**: `http://bankapp.yourdomain.com/nginx`
-- **ArgoCD UI**: `http://<argocd-loadbalancer-ip>` (user: `admin`)
-
-**DB Verification:**
+## DB Verification
 
 ```bash
 kubectl exec -it <mysql-pod-name> -n bankapp-prod -- mysql -u bankuser -p bankapp -e "SELECT * FROM accounts;"
@@ -556,24 +455,20 @@ kubectl exec -it <mysql-pod-name> -n bankapp-prod -- mysql -u bankuser -p bankap
 
 ---
 
-## 🧹 Cleanup & Cost Management
+## 🧹 Cleanup
 
-To avoid ongoing AWS charges, decommission the infrastructure in this specific order:
+To delete the local infrastructure:
 
-1. **Delete EKS Cluster & Node Groups**:
+1. **Delete Kind Cluster**:
    ```bash
-   eksctl delete cluster --name bankapp-prod-cluster --region us-east-1
+   kind delete cluster --name bankapp-kind-cluster
    ```
 
-2. **Delete Ollama EC2**:
-   - Manually terminate the Ollama EC2 instance in the AWS Console.
+2. **Delete ArgoCD and cert-manager (optional)**:
+   ```bash
+   kubectl delete namespace argocd cert-manager bankapp-prod --ignore-not-found
+   ```
 
-3. **Delete Management EC2**:
-   - Manually terminate the Management EC2 instance in the AWS Console.
-
-4. **Verify Resource Cleanup**:
-   - Confirm all **CloudFormation Stacks** starting with `eksctl-` are deleted.
-   - Confirm no orphaned **Load Balancers** or **Elastic IPs** remain.
 
 ---
 

@@ -31,4 +31,4 @@ jobs:
   # ============================================================
   # GATE 9: ARGOCD SYNC (Optional, ArgoCD can auto-sync)
   # ============================================================
-  # Note: ArgoCD is configured to auto-sync in its manifest
+  # Note: ArgoCD is configured to auto-sync in its manifest

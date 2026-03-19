@@ -42,8 +42,22 @@ spec:
                 secretKeyRef:
                   name: bankapp-db-secrets
                   key: password
-            - name: OLLAMA_URL
-              value: {{ .Values.ollama.url | quote }}
+            - name: AI_TIMEOUT_CONNECT_MS
+              value: {{ .Values.ai.timeoutConnectMs | quote }}
+            - name: AI_TIMEOUT_READ_MS
+              value: {{ .Values.ai.timeoutReadMs | quote }}
+            - name: GEMINI_MODEL
+              value: {{ .Values.gemini.model | quote }}
+            - name: GEMINI_MAX_OUTPUT_TOKENS
+              value: {{ .Values.gemini.maxOutputTokens | quote }}
+            - name: GEMINI_API_URL
+              value: {{ .Values.gemini.apiUrl | quote }}
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bankapp-ai-secrets
+                  key: gemini-api-key
+                  optional: true
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness

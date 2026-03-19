@@ -1,19 +1,12 @@
 apiVersion: cert-manager.io/v1
-kind: ClusterIssuer
+kind: Certificate
 metadata:
-  name: letsencrypt-prod
+  name: {{ include "bankapp.fullname" . }}-tls
 spec:
-  acme:
-    server: https://acme-v02.api.letsencrypt.org/directory
-    email: amitabhsoni2004@gmail.com  # Replace with your email for Let's Encrypt notifications
-    privateKeySecretRef:
-      name: letsencrypt-prod-account-key
-    solvers:
-      - http01:
-          gatewayHTTPRoute:
-            parentRefs:
-              - name: {{ .Values.gateway.name }}
-                namespace: bankapp-prod
-                
-# Only ClusterIssuer is needed.
-# The Certificate is managed automatically by the Gateway annotation.
+  secretName: {{ .Values.gateway.tls.secretName }}
+  commonName: {{ .Values.gateway.host | quote }}
+  dnsNames:
+    - {{ .Values.gateway.host | quote }}
+  issuerRef:
+    name: {{ .Values.gateway.tls.certManager.issuerName }}
+    kind: Issuer

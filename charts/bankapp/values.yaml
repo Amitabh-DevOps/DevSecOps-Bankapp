@@ -3,12 +3,10 @@
 
 replicaCount: 1
 
-domain: "bankapp.amitabh.cloud"
-
 image:
-  repository: "981526069311.dkr.ecr.us-east-1.amazonaws.com/devsecops-bankapp"  # Your ECR repo URI
+  repository: "amitabhdevops/devsecops-bankapp"  # Your Docker Hub repo URI
   pullPolicy: IfNotPresent
-  tag: "fcd025fc520629efd738c2acfa468ac40efcf4e4"
+  tag: "2cea33b69c45ff67a01deafc54d987030649f80f"
 
 service:
   type: ClusterIP
@@ -21,12 +19,32 @@ database:
   user: "bankuser"
   password: "" # To be provided from Secrets
 
-ollama:
-  url: "http://172.31.43.184:11434" # Replace with real Private IP
+ai:
+  timeoutConnectMs: 3000
+  timeoutReadMs: 30000
+
+gemini:
+  model: "gemini-3-flash-preview"
+  maxOutputTokens: 512
+  apiUrl: "https://generativelanguage.googleapis.com/v1beta/models"
 
 gateway:
   name: "bankapp-gateway"
   className: "envoy" # Envoy Gateway Controller
+  host: "54.91.43.65.nip.io"
+  envoyProxy:
+    name: "bankapp-proxy-config"
+    serviceType: NodePort
+    nodePorts:
+      http: 30080
+      https: 30443
+  tls:
+    enabled: true
+    secretName: "bankapp-tls"
+    certManager:
+      enabled: true
+      issuerName: "letsencrypt-prod"
+      email: "amitabhdevops2004@gmail.com"
 
 nginx:
   enabled: true
