@@ -23,8 +23,8 @@ ollama:
   url: "http://172.17.0.1:11434" # Docker bridge IP for reaching host container
 
 ai:
-  provider: "ollama" # ollama | gemini
-  fallbackToOllama: true
+  provider: "gemini" # ollama | gemini
+  fallbackToOllama: false
 
 gemini:
   model: "gemini-3-flash-preview"
