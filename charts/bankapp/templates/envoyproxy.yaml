@@ -9,24 +9,28 @@ spec:
     kubernetes:
       envoyService:
         type: NodePort
+        # Modern v1.x way to declare NodePorts
+        ports:
+          - name: http
+            port: 80
+            nodePort: 30080
+          - name: https
+            port: 443
+            nodePort: 30443
+  # Backup: Strategic Merge Patch (supported in EG 1.5+)
   infraPatch:
-    type: JSONPatch
-    jsonPatches:
+    type: StrategicMergePatch
+    strategicMergePatches:
       - group: ""
         version: v1
         kind: Service
         name: envoy
-        patchType: JSONPatch
-        patches:
-          - op: replace
-            path: /spec/ports/0/nodePort
-            value: 30080
-          - op: replace
-            path: /spec/ports/1/nodePort
-            value: 30443
-          - op: replace
-            path: /spec/ports/0/port
-            value: 80
-          - op: replace
-            path: /spec/ports/1/port
-            value: 443
+        patch:
+          spec:
+            ports:
+              - name: http
+                port: 80
+                nodePort: 30080
+              - name: https
+                port: 443
+                nodePort: 30443
