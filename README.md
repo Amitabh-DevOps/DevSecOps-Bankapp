@@ -50,7 +50,7 @@ graph TD
     ARGO -->|Watch & Sync| REPO
     ARGO -->|Deploy/Update| APP
 
-    USER[User Browser] -->|http://EC2_IP:30080| GW
+   USER[User Browser] -->|http/https://PUBLIC_IP.nip.io| GW
     GW -->|Route /| APP
     GW -->|Route /nginx| NGX
 
@@ -279,6 +279,18 @@ Ensure your EC2 Security Group allows traffic on ports **80** and **443** (host 
 
 Update `charts/bankapp/values.yaml` before ArgoCD sync:
 
+```yaml
+gateway:
+   host: "<YOUR_PUBLIC_IP>.nip.io"
+   tls:
+      enabled: true
+      secretName: "bankapp-tls"
+      certManager:
+         enabled: true
+         issuerName: "letsencrypt-prod"
+         email: "you@example.com"
+```
+
 > **Important**: `gateway.host` must be a real `<PUBLIC_IP>.nip.io` value and `email` must be valid for Let's Encrypt ACME registration.
 
 > **Important**: Replace any placeholder/default values in `charts/bankapp/values.yaml` (especially `gateway.host` and `gateway.tls.certManager.email`) with your own environment values before syncing with ArgoCD.
@@ -287,6 +299,20 @@ Update `charts/bankapp/values.yaml` before ArgoCD sync:
 
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager --timeout=5m
+
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager-cainjector --timeout=5m
+
+kubectl wait -n cert-manager --for=condition=Available deployment/cert-manager-webhook --timeout=5m
+
+# Required when using HTTP01 solver with Gateway API
+kubectl -n cert-manager patch deploy cert-manager --type='json' \
+   -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--enable-gateway-api"}]'
+
+kubectl -n cert-manager rollout restart deploy cert-manager
+
+kubectl -n cert-manager rollout status deploy cert-manager
 ```
 
 #### Step 3 — Install ArgoCD
@@ -339,7 +365,16 @@ kubectl get gateway bankapp-gateway -n bankapp-prod
 kubectl get svc -n envoy-gateway-system
 kubectl get certificate -n bankapp-prod
 kubectl describe certificate bankapp-tls -n bankapp-prod
+kubectl get certificaterequest,order,challenge -n bankapp-prod
 ```
+
+If certificate issuance is stuck, inspect challenge reason:
+
+```bash
+kubectl describe challenge -n bankapp-prod
+```
+
+If the reason shows `gateway api is not enabled`, re-run the cert-manager patch command from Step 2.2 and recreate ACME resources.
  
 > **Note**: For Let's Encrypt to verify your domain and enable HTTPS (optional Phase 3 check), ensure your EC2 Security Group allows traffic on ports **80** and **443**.
 
@@ -424,6 +459,7 @@ charts/bankapp/
 - Points to `charts/bankapp` in this repo.
 - Deploys to namespace: `bankapp-prod`.
 - Auto-sync enabled with `prune: true` and `selfHeal: true`.
+- If `Gateway` appears `Healthy` but `OutOfSync`, check `Diff` first. In this project we removed `spec.infrastructure.parametersRef` from `Gateway` to avoid controller-pruned-field drift while keeping `EnvoyProxy` linkage at `GatewayClass` level.
 
 ---
 
