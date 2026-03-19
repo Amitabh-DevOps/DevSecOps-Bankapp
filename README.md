@@ -116,7 +116,9 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
       
       kubectl version --client
       ```
-      
+
+   - Clone this repository and navigate to the project directory
+
    - Create Kind Cluster:
   
       ```bash
@@ -147,12 +149,11 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
 
    - No local AI runtime is required. This project uses Gemini over HTTPS.
     
-   - **Verification**: Ensure the Kind pods can reach the host. The default Docker bridge IP is usually `172.17.0.1`. 
-   
-      Verify with:
+   - **Verification**: Confirm Gateway API CRDs and Envoy Gateway are installed and healthy.
 
       ```bash
-      ip addr show docker0 | grep inet
+      kubectl get crd gateways.gateway.networking.k8s.io
+      kubectl get pods -n envoy-gateway-system
       ```
 
 ---
@@ -223,13 +224,15 @@ kubectl create secret generic bankapp-ai-secrets \
    -n bankapp-prod
 ```
 
+> Get Gemini API key from Google AI Studio (https://aistudio.google.com/api-keys). This key is required for the AI assistant functionality in the BankApp backend. If you do not have a Gemini API key, you can still deploy and run the application, but AI-powered features will not work.
+
 #### Step 2 — Verify Kind Networking
 
 Ensure your EC2 Security Group allows traffic on ports **80** and **443** (host ports mapped by Kind).
 
 > **Note**: In a Kind cluster, Envoy is exposed through NodePorts **30080/30443**, and `kind-setup.sh` maps host ports **80/443** to those NodePorts.
 
-> **Networking Update**: This project uses **Gateway API + Envoy Gateway** (not Kubernetes Ingress). Ingress is intentionally not used here, and all traffic exposure is handled declaratively via `Gateway`, `HTTPRoute`, and `EnvoyProxy` manifests in the Helm chart.
+> **Networking Update**: This project uses **Gateway API + Envoy Gateway** (not Kubernetes Ingress). Ingress is deprecated, and all traffic exposure is handled declaratively via `Gateway`, `HTTPRoute`, and `EnvoyProxy` manifests in the Helm chart.
 
 #### Step 2.1 — Configure nip.io Hostname + TLS Values
 
@@ -260,6 +263,10 @@ kubectl -n cert-manager patch deploy cert-manager --type='json' \
 kubectl -n cert-manager rollout restart deploy cert-manager
 
 kubectl -n cert-manager rollout status deploy cert-manager
+
+# Verify
+kubectl get pods -n cert-manager 
+
 ```
 
 #### Step 3 — Install ArgoCD
@@ -288,6 +295,7 @@ Expose ArgoCD UI (if not externally exposed):
 ```bash
 kubectl port-forward svc/argocd-server -n argocd 8081:80 --address 0.0.0.0 &
 ```
+
 Login via `http://<PUBLIC_IP>:8081` with user `admin`.
 
 #### Step 5 — Deploy via ArgoCD (Apply Manifest)
@@ -296,7 +304,15 @@ Login via `http://<PUBLIC_IP>:8081` with user `admin`.
 kubectl apply -f gitops/argocd-app.yaml
 ```
 
+**ArgoCD Application** (`gitops/argocd-app.yaml`):
+- Points to `charts/bankapp` in this repo.
+- Deploys to namespace: `bankapp-prod`.
+- Auto-sync enabled with `prune: true` and `selfHeal: true`.
+
+
 ArgoCD will sync `charts/bankapp` and deploy all resources.
+
+![argocd-app-healthy](screenshots/argocd-app-healthy.png)
 
 #### Step 6 — Verify Access (Gateway API & nip.io)
  
@@ -332,35 +348,13 @@ Push code to `main`. GitHub Actions will:
 2. Gate 8 commits the new tag to `values.yaml`.
 3. ArgoCD auto-syncs the new image to the Kind cluster.
 
+![github-action-success](screenshots/github-action-success.png)
+
 #### AI Assistant Behavior (Current)
 
 - For account-specific intents like balance and transaction history, the backend can return deterministic answers directly from the database for reliability and speed.
 - For open-ended prompts (for example: financial concepts), responses are generated through Gemini.
 - Fast responses are therefore expected for balance/transaction questions and do not always indicate an external AI call.
-
----
-
-## Technical Overview
-
-```mermaid
-graph TD
-    git[git push] --> ci[CI Workflow]
-    ci --> gate1[Gitleaks]
-    ci --> gate2[Checkstyle]
-    ci --> gate3[Semgrep]
-    ci --> gate4[OWASP DC]
-    
-    gate4 --> build[Build Workflow]
-    build --> gate5[Maven Build]
-    build --> gate6[Trivy Scan]
-    build --> gate7[Docker Hub Push]
-    
-    gate7 --> cd[CD Workflow]
-    cd --> gate8[GitOps Update]
-    
-    gate8 --> kind[Kind Cluster]
-    kind --> argo[ArgoCD Sync]
-```
 
 ---
 
@@ -380,6 +374,12 @@ graph TD
 *   **Nginx Demo**: `http://<YOUR_PUBLIC_IP>.nip.io/nginx`
 *   **ArgoCD UI**: `http://<YOUR_PUBLIC_IP>:8081` (via `kubectl port-forward`)
 
+**Path Routing:**
+| Path | Backend | Description |
+| :--- | :--- | :--- |
+| `/` | BankApp (port 8080) | Spring Boot Banking Application |
+| `/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
+
 ---
 
 ## Helm Chart Structure
@@ -390,57 +390,16 @@ charts/bankapp/
 ├── values.yaml             # All configurable values (image, DB, Nginx)
 └── templates/
     ├── _helpers.tpl        # Shared template helpers
-   ├── certificate.yaml    # cert-manager Certificate for nip.io TLS
+    ├── certificate.yaml    # cert-manager Certificate for nip.io TLS
     ├── deployment.yaml     # BankApp Deployment (Docker Hub image, health probes)
     ├── envoyproxy.yaml     # Declarative NodePort configuration for Kind
-   ├── gateway.yaml        # Gateway API — Gateway resource (ports 80/443)
+    ├── gateway.yaml        # Gateway API — Gateway resource (ports 80/443)
     ├── gatewayclass.yaml   # Envoy Gateway Class (linked to EnvoyProxy)
     ├── httproute.yaml      # Gateway API — HTTPRoute (path-based routing)
-   ├── issuer.yaml         # cert-manager ACME Issuer (Let's Encrypt)
+    ├── issuer.yaml         # cert-manager ACME Issuer (Let's Encrypt)
     ├── mysql.yaml          # MySQL 8.0 Deployment + ClusterIP Service
     ├── nginx.yaml          # Nginx Demo Deployment + Service
     └── service.yaml        # BankApp ClusterIP Service (port 8080)
-```
-
-**Path Routing:**
-| Path | Backend | Description |
-| :--- | :--- | :--- |
-| `/` | BankApp (port 8080) | Spring Boot Banking Application |
-| `/nginx` | Nginx (port 80) | Demo service to showcase Gateway API routing |
-
-**ArgoCD Application** (`gitops/argocd-app.yaml`):
-- Points to `charts/bankapp` in this repo.
-- Deploys to namespace: `bankapp-prod`.
-- Auto-sync enabled with `prune: true` and `selfHeal: true`.
-- If `Gateway` appears `Healthy` but `OutOfSync`, check `Diff` first. In this project we removed `spec.infrastructure.parametersRef` from `Gateway` to avoid controller-pruned-field drift while keeping `EnvoyProxy` linkage at `GatewayClass` level.
-
----
-
-## CI/CD Pipeline Overview
-
-```
-git push
-    │
-    ▼
-CI Workflow (ci.yml)
-    ├── Gate 1: Gitleaks      ── Secret scan (full history)
-    ├── Gate 2: Checkstyle    ── Java style audit
-    ├── Gate 3: Semgrep       ── SAST (OWASP Top 10)
-    └── Gate 4: OWASP DC      ── Dependency CVE scan
-    │
-    ▼ (on success)
-Build Workflow (build.yml)
-    ├── Gate 5: Maven Build   ── Compile + package JAR
-    ├── Gate 6: Trivy Scan    ── Container image scan
-    └── Gate 7: Docker Hub Push── Push image (Secret auth)
-    │
-    ▼ (on success)
-CD Workflow (cd.yml)
-    └── Gate 8: GitOps Update ── Update values.yaml → commit → push
-    │
-    ▼ (ArgoCD auto-sync)
-Kind Cluster
-    └── ArgoCD syncs new image tag → Rolling update on BankApp pods
 ```
 
 ---
@@ -468,8 +427,7 @@ To delete the local infrastructure:
    ```bash
    kubectl delete namespace argocd cert-manager bankapp-prod --ignore-not-found
    ```
-
-
+   
 ---
 
 <div align="center">

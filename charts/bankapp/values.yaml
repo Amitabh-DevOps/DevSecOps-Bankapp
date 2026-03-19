@@ -31,7 +31,7 @@ gemini:
 gateway:
   name: "bankapp-gateway"
   className: "envoy" # Envoy Gateway Controller
-  host: "54.91.43.65.nip.io"
+  host: "54.91.43.65.nip.io" # Update with your nip.io host (e.g., <PUBLIC_IP>.nip.io)
   envoyProxy:
     name: "bankapp-proxy-config"
     serviceType: NodePort
@@ -44,7 +44,7 @@ gateway:
     certManager:
       enabled: true
       issuerName: "letsencrypt-prod"
-      email: "amitabhdevops2004@gmail.com"
+      email: "amitabhdevops2004@gmail.com" # Update with your email for cert-manager notifications
 
 nginx:
   enabled: true
