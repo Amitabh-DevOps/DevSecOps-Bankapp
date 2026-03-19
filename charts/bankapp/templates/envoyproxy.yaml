@@ -9,3 +9,18 @@ spec:
     kubernetes:
       envoyService:
         type: NodePort
+  infraPatch:
+    type: JSONPatch
+    jsonPatches:
+      - group: ""
+        version: v1
+        kind: Service
+        name: envoy-bankapp-prod-bankapp-gateway
+        patchType: JSONPatch
+        patches:
+          - op: replace
+            path: /spec/ports/0/nodePort
+            value: 30080
+          - op: replace
+            path: /spec/ports/0/port
+            value: 80
