@@ -5,6 +5,7 @@ import com.example.bankapp.model.Transaction;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.Duration;
@@ -24,7 +25,7 @@ public class ChatService {
     @Value("${ollama.timeout.connect-ms:3000}")
     private int connectTimeoutMs;
 
-    @Value("${ollama.timeout.read-ms:12000}")
+    @Value("${ollama.timeout.read-ms:30000}")
     private int readTimeoutMs;
 
     private final RestTemplateBuilder restTemplateBuilder;
@@ -62,6 +63,8 @@ public class ChatService {
                 return message.get("content");
             }
             return "Sorry, I couldn't process that.";
+        } catch (ResourceAccessException e) {
+            return "AI assistant is taking longer than expected. Please try again in a few seconds.";
         } catch (Exception e) {
             return "AI assistant is unavailable. Please make sure Ollama is running.";
         }
