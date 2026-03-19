@@ -153,39 +153,40 @@ All scan reports (OWASP, Trivy) are uploaded as downloadable **Artifacts** in ea
    - Create Kind Cluster:
   
       ```bash
-       chmod +x scripts/kind-setup.sh
-       ./scripts/kind-setup.sh
+      chmod +x scripts/kind-setup.sh
+      
+      ./scripts/kind-setup.sh
       ```
   
    - **Install Gateway API & Envoy Gateway**: (Crucial for Networking)
   
       ```bash
-       # 1. Install Gateway API CRDs
-       kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
+      # 1. Install Gateway API CRDs
+      kubectl apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.1.0/standard-install.yaml
   
-       # 2. Install Envoy Gateway via Helm
-       helm install eg oci://docker.io/envoyproxy/gateway-helm \
+      # 2. Install Envoy Gateway via Helm
+      helm install eg oci://docker.io/envoyproxy/gateway-helm \
          --version v1.7.1 \
          -n envoy-gateway-system \
          --create-namespace \
-         --set service.type=LoadBalancer
+         --set service.type=NodePort
       ```
   
    - Wait for Envoy Gateway to be ready:
    
       ```bash
-       kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
+      kubectl wait -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available --timeout=5m
       ```
 
    - Run Ollama locally:
     
       ```bash
-       docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+      docker run -d --restart unless-stopped -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 
-       docker exec ollama ollama pull tinyllama
+      docker exec ollama ollama pull tinyllama
        
-       # Test Ollama API access from the host (should return model info) 
-       curl http://localhost:11434/api/tags
+      # Test Ollama API access from the host (should return model info) 
+      curl http://localhost:11434/api/tags
       ```
 
       > `docker run -d` keeps Ollama running in the background. No dedicated terminal is required.
